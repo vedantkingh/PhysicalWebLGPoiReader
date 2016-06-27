@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.util.Log;
 
 import com.jcraft.jsch.Channel;
 import com.jcraft.jsch.ChannelExec;
@@ -19,7 +20,11 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Properties;
+
+import gsoc.google.com.physicalweblgpoireader.model.POI;
 
 /**
  * Created by lgwork on 27/06/16.
@@ -171,10 +176,54 @@ public class LGutils {
         return b;
     }
 
-   /* public static String sendCommandToLG(String command, Activity activity) throws JSchException {
+    public static boolean visitPOIS(List<POI> poisList, Activity activity) {
+        return sendTourPOIs(poisList,activity);
+    }
 
-        command = "touch /var/www/test2.kml";
 
+    private static boolean sendTourPOIs(List<POI> poisList, Activity activity) {
+        sendFirstTourPOI(poisList.get(0),activity);
+       return sendOtherTourPOIs(poisList, 10,activity);
+    }
+
+    private static void sendFirstTourPOI(POI firstPoi,Activity activity) {
+        try {
+            setConnectionWithLiquidGalaxy(buildCommand(firstPoi),activity);
+        } catch (JSchException e) {
+            e.printStackTrace();
+            AndroidUtils.showMessage("Error in connection with Liquid Galaxy.",activity);
+        }
+    }
+
+    private static boolean sendOtherTourPOIs(List<POI> pois, int poisDuration, Activity activity) {
+
+        for(int i=1;i<pois.size();i++){
+            sendTourPOI(poisDuration, buildCommand(pois.get(i)),activity);
+        }
+
+        return true;
+
+    }
+
+    private static void sendTourPOI(Integer duration, String command, Activity activity) {
+        try {
+            Thread.sleep((long) (duration.intValue() * 1000));
+            setConnectionWithLiquidGalaxy(command,activity);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+            AndroidUtils.showMessage("Error in duration of POIs",activity);
+        } catch (JSchException e2) {
+            AndroidUtils.showMessage("Error in connection with Liquid Galaxy.",activity);
+            e2.printStackTrace();
+        }
+    }
+
+    private static String buildCommand(POI poi) {
+        return "echo 'flytoview=<LookAt><longitude>" + (poi.getPoint().getLongitude()) + "</longitude><latitude>" + (poi.getPoint().getLatitude()) + "</latitude><altitude>" + (0) + "</altitude><heading>" + (78) + "</heading><tilt>" + (61) + "</tilt><range>" + (300) + "</range><gx:altitudeMode>" + "relativeToSeaFloor" + "</gx:altitudeMode></LookAt>' > /tmp/query.txt";
+    }
+
+
+    private static String setConnectionWithLiquidGalaxy(String command,Activity activity) throws JSchException {
         SharedPreferences prefs = activity.getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE);
         String user = prefs.getString("lgUser", "lg");
         String password = prefs.getString("lgPassword", "lqgalaxy");
@@ -194,5 +243,6 @@ public class LGutils {
         channelssh.connect();
         channelssh.disconnect();
         return baos.toString();
-    }*/
+    }
+
 }

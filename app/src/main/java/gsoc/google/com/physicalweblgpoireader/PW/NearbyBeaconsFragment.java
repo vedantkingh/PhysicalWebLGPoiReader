@@ -40,7 +40,6 @@ import android.support.v4.app.ListFragment;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.view.menu.MenuView;
 import android.text.InputType;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -61,10 +60,8 @@ import android.widget.TextView;
 import com.jcraft.jsch.JSchException;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -692,7 +689,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         @Override
         protected Boolean doInBackground(Void... params) {
             try {
-                return getFileContents();
+                return importAsPois();
             } catch (Exception e) {
                 cancel(true);
                 return null;
@@ -700,7 +697,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         }
 
 
-        private boolean getFileContents() throws IOException {
+        private boolean importAsPois() throws IOException {
             URL url = null;
             boolean successfullyCopied = false;
             HttpURLConnection urlConnection = null;
@@ -738,7 +735,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     }
 
 
-    private class ImportAsVisitTask extends AsyncTask<Void, Void, List<POI>> {
+    private class ImportAsVisitTask extends AsyncTask<Void, Void, Boolean> {
 
         String fileId;
         String downloadUrl = "";
@@ -756,7 +753,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             super.onPreExecute();
             if (dialog == null) {
                 dialog = new ProgressDialog(getActivity());
-                dialog.setMessage(getResources().getString(R.string.checkingContents));
+                dialog.setMessage(getResources().getString(R.string.importingContentsVisit));
                 dialog.setIndeterminate(false);
                 dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
                 dialog.setCancelable(true);
@@ -773,9 +770,9 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
 
         @Override
-        protected List<POI> doInBackground(Void... params) {
+        protected Boolean doInBackground(Void... params) {
             try {
-                return getFileContents();
+                return importAsVisit();
             } catch (Exception e) {
                 cancel(true);
                 return null;
@@ -783,9 +780,9 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         }
 
 
-        private List<POI> getFileContents() throws IOException {
+        private boolean importAsVisit() throws IOException {
             URL url = null;
-
+            boolean success= false;
             HttpURLConnection urlConnection = null;
             try {
                 url = new URL(this.downloadUrl);
@@ -796,9 +793,11 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 CustomXmlPullParser customXmlPullParser = new CustomXmlPullParser();
                 List<POI> poisList = customXmlPullParser.parse(in, getActivity());
 
-                //successfullyCopied =  LGutils.copyFiletoLG(in,getActivity());
+                success = LGutils.visitPOIS(poisList,getActivity());
 
-                return poisList;
+                //createTourGalaxyDocument(poisList);
+
+                return success;
 
             } catch (MalformedURLException e) {
                 e.printStackTrace();
@@ -807,21 +806,20 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             } finally {
                 urlConnection.disconnect();
             }
-            return null;
+            return success;
         }
 
         @Override
-        protected void onPostExecute(List<POI> poisList) {
-            super.onPostExecute(poisList);
-            if (poisList != null) {
-                createTourGalaxyDocument(poisList);
-
+        protected void onPostExecute(Boolean success) {
+            super.onPostExecute(success);
+            if (success) {
                 if (dialog != null) {
                     dialog.hide();
                     dialog.dismiss();
                 }
             }
         }
+
 
         private void createTourGalaxyDocument(List<POI> poisList) {
             StringBuilder categoryStrB = new StringBuilder("importTest");

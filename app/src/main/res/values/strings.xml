@@ -52,6 +52,7 @@
     <string name="importAsPOISStr">Import as POIS in LG</string>
     <string name="importAsVisitStr">Import as Visit in LG</string>
     <string name="importingContents">Importing Contents into Liquid Galaxy…</string>
+    <string name="importingContentsVisit">Importing Contents into Liquid Galaxy Visit…</string>
 
 
 </resources>
