@@ -183,7 +183,7 @@ public class LGutils {
 
     private static boolean sendTourPOIs(List<POI> poisList, Activity activity) {
         sendFirstTourPOI(poisList.get(0),activity);
-       return sendOtherTourPOIs(poisList, 10,activity);
+       return sendOtherTourPOIs(poisList,activity);
     }
 
     private static void sendFirstTourPOI(POI firstPoi,Activity activity) {
@@ -195,10 +195,12 @@ public class LGutils {
         }
     }
 
-    private static boolean sendOtherTourPOIs(List<POI> pois, int poisDuration, Activity activity) {
+    private static boolean sendOtherTourPOIs(List<POI> pois, Activity activity) {
+        SharedPreferences prefs = activity.getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE);
+        String defaultPoisDurationPrefs = prefs.getString("defaultVisitPoiDuration", "10");
 
         for(int i=1;i<pois.size();i++){
-            sendTourPOI(poisDuration, buildCommand(pois.get(i)),activity);
+            sendTourPOI(Integer.parseInt(defaultPoisDurationPrefs), buildCommand(pois.get(i)),activity);
         }
 
         return true;
@@ -207,6 +209,7 @@ public class LGutils {
 
     private static void sendTourPOI(Integer duration, String command, Activity activity) {
         try {
+
             Thread.sleep((long) (duration.intValue() * 1000));
             setConnectionWithLiquidGalaxy(command,activity);
         } catch (InterruptedException e) {

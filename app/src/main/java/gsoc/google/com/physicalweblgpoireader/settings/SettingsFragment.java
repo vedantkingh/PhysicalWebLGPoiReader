@@ -35,6 +35,7 @@ public class SettingsFragment extends Fragment {
     private EditText lgPassword;
     private EditText lgSSH;
     private EditText lgKMLName;
+    private EditText defaultVisitPoiDuration;
 
     private TextInputLayout password1;
     private TextInputLayout password2;
@@ -79,6 +80,8 @@ public class SettingsFragment extends Fragment {
 
         String lgKMLNameStr = prefs.getString("lgKMLName", "test1.kml");
 
+        String defaultPoisDurationPrefs = prefs.getString("defaultVisitPoiDuration", "10");
+
 
 
         adminPasswordInput1 = (EditText) rootView.findViewById(R.id.lg_password_1_input);
@@ -105,6 +108,8 @@ public class SettingsFragment extends Fragment {
         lgKMLName.setText(lgKMLNameStr);
 
 
+        defaultVisitPoiDuration =  (EditText) rootView.findViewById(R.id.defaultVisitPoiDuration);
+        defaultVisitPoiDuration.setText(defaultPoisDurationPrefs);
 
 
         saveChanges = (Button) rootView.findViewById(R.id.btn_save_preferences);
@@ -125,6 +130,7 @@ public class SettingsFragment extends Fragment {
                     editor.putString("lgPassword", lgPassword.getText() != null ? lgPassword.getText().toString() : "");
                     editor.putString("lgPort", lgSSH.getText() != null ? lgSSH.getText().toString() : "");
                     editor.putString("lgKMLName", lgKMLName.getText() != null ? lgKMLName.getText().toString() : "");
+                    editor.putString("defaultVisitPoiDuration", defaultVisitPoiDuration.getText() != null ? defaultVisitPoiDuration.getText().toString() : "");
                     editor.commit();
 
                     View view = getActivity().getCurrentFocus();
