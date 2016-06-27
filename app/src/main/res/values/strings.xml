@@ -1,0 +1,51 @@
+<resources>
+    <string name="app_name">PhysicalWebLGPoiReader</string>
+
+    <!--General-->
+    <string name="accept">Accept</string>
+    <string name="close">Close</string>
+    <string name="save">Save</string>
+
+
+
+    <!--Beacons-->
+    <string name="nearby_beacon_favicon_content_description">favicon for the given URL for this entry</string>
+    <string name="title_nearby_beacons">Found Physical Web Beacons</string>
+    <string name="empty_nearby_beacons_list_text">Searching for beacons</string>
+    <string name="config_no_beacons_found">No beacons found</string>
+    <plurals name="numFoundBeacons">
+        <item quantity="one">Beacon Nearby</item>
+        <item quantity="other">Beacons Nearby</item>
+    </plurals>
+    <string name="discovery_service_prefs_key">org.physical_web.physicalweb.DISCOVERY_SERVICE_PREFS</string>
+    <string name="summary_notification_pull_down">Pull down to see them.</string>
+    <string name="url_shortening_error">URL is too long. Please use a shortener.</string>
+    <string name="url_charset_error">Non-ASCII characters unsupported in URL. Please use a shortener.</string>
+    <string name="error_bluetooth_support">Device does not support Bluetooth</string>
+    <string name="importStr">Import Pois</string>
+    <string name="notification_view_more_beacons">View more beacons</string>
+
+
+
+    <string name="checkingContents">Checking Contents...</string>
+    <string name="parsingError">Error in parsing XML</string>
+
+
+    <!-- About Dialog-->
+    <string name="action_about">About</string>
+    <string name="about_message">About this app</string>
+    <string name="aboutDocText1">This app has been developed thanks to GSOC 2016 Program</string>
+    <string name="aboutDocText2">by Ivan Josa Llovera (ivanjosallovera@gmail.com)</string>
+    <string name="aboutDocText3">https://github.com/LiquidGalaxyLAB/BYOP</string>
+
+    <!-- Settings Dialog-->
+    <string name="action_lg_settings">Liquid Galaxy Settings</string>
+    <string name="lg_ip">IP of Liquid Galaxy</string>
+    <string name="error_incorrect_password">Incorrect Password</string>
+    <string name="passwords_no_match">Passwords don\'t match</string>
+    <string name="close_body">Are you sure that you want to leave?</string>
+    <string name="administrative_password">Enter Password</string>
+    <string name="enter__admin_password">Enter password</string>
+
+
+</resources>
