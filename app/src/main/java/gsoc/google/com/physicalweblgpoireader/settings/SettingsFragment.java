@@ -28,10 +28,13 @@ import gsoc.google.com.physicalweblgpoireader.utils.FragmentStackManager;
 public class SettingsFragment extends Fragment {
 
     protected FragmentStackManager fragmentStackManager;
-    private EditText passwordInput1;
-    private EditText passwordInput2;
-    private EditText driveLgFolderInput;
-    private EditText driveLgFolderNameInput;
+    private EditText adminPasswordInput1;
+    private EditText adminPasswordInput2;
+    private EditText lgIp;
+    private EditText lgUser;
+    private EditText lgPassword;
+    private EditText lgSSH;
+    private EditText lgKMLName;
 
     private TextInputLayout password1;
     private TextInputLayout password2;
@@ -67,35 +70,61 @@ public class SettingsFragment extends Fragment {
         View rootView = inflater.inflate(R.layout.settings_layout, container, false);
 
         SharedPreferences prefs = getActivity().getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE);
-        String password = prefs.getString("password", "");
+        String adminPassword = prefs.getString("password", "");
         String folderName = prefs.getString("lgIP", "");
 
+        String userPrefs = prefs.getString("lgUser", "lg");
+        String lgPasswordPrefs = prefs.getString("lgPassword", "lqgalaxy");
+        String lgSShPort = prefs.getString("lgPort", "22");
 
-        passwordInput1 = (EditText) rootView.findViewById(R.id.lg_password_1_input);
-        if (!password.equals("")) passwordInput1.setText(password);
+        String lgKMLNameStr = prefs.getString("lgKMLName", "test1.kml");
+
+
+
+        adminPasswordInput1 = (EditText) rootView.findViewById(R.id.lg_password_1_input);
+        if (!adminPassword.equals("")) adminPasswordInput1.setText(adminPassword);
         password1 = (TextInputLayout) rootView.findViewById(R.id.lg_password_1);
 
-        passwordInput2 = (EditText) rootView.findViewById(R.id.lg_password_2_input);
-        if (!password.equals("")) passwordInput2.setText(password);
+        adminPasswordInput2 = (EditText) rootView.findViewById(R.id.lg_password_2_input);
+        if (!adminPassword.equals("")) adminPasswordInput2.setText(adminPassword);
         password2 = (TextInputLayout) rootView.findViewById(R.id.lg_password_2);
 
-        driveLgFolderNameInput = (EditText) rootView.findViewById(R.id.lg_shared_folder_name_input);
-        driveLgFolderNameInput.setText(folderName);
+        lgIp = (EditText) rootView.findViewById(R.id.lg_ip_text);
+        lgIp.setText(folderName);
+
+        lgUser = (EditText) rootView.findViewById(R.id.lg_user);
+        lgUser.setText(userPrefs);
+
+        lgPassword = (EditText) rootView.findViewById(R.id.lg_password);
+        lgPassword.setText(lgPasswordPrefs);
+
+        lgSSH =  (EditText) rootView.findViewById(R.id.lg_ssh);
+        lgSSH.setText(lgSShPort);
+
+        lgKMLName =  (EditText) rootView.findViewById(R.id.lg_defaultKML);
+        lgKMLName.setText(lgKMLNameStr);
+
+
+
 
         saveChanges = (Button) rootView.findViewById(R.id.btn_save_preferences);
         saveChanges.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Resources res = getActivity().getResources();
-                if (!passwordInput1.getText().toString().equals(passwordInput2.getText().toString())) {
+                if (!adminPasswordInput1.getText().toString().equals(adminPasswordInput2.getText().toString())) {
                     password1.setError(res.getString(R.string.passwords_no_match));
                     password2.setError(res.getString(R.string.passwords_no_match));
                 } else {
                     password1.setErrorEnabled(false);
                     password2.setErrorEnabled(false);
                     SharedPreferences.Editor editor = getActivity().getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE).edit();
-                    editor.putString("password", passwordInput1.getText() != null ? passwordInput1.getText().toString() : "");
-                    editor.putString("lgIP", driveLgFolderNameInput.getText() != null ? driveLgFolderNameInput.getText().toString() : "");
+                    editor.putString("password", adminPasswordInput1.getText() != null ? adminPasswordInput1.getText().toString() : "");
+                    editor.putString("lgIP", lgIp.getText() != null ? lgIp.getText().toString() : "");
+                    editor.putString("lgUser", lgUser.getText() != null ? lgUser.getText().toString() : "");
+                    editor.putString("lgPassword", lgPassword.getText() != null ? lgPassword.getText().toString() : "");
+                    editor.putString("lgPort", lgSSH.getText() != null ? lgSSH.getText().toString() : "");
+                    editor.putString("lgKMLName", lgKMLName.getText() != null ? lgKMLName.getText().toString() : "");
                     editor.commit();
 
                     View view = getActivity().getCurrentFocus();

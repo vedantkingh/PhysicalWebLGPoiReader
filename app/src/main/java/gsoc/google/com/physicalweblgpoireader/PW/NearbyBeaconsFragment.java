@@ -58,6 +58,8 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
+import com.jcraft.jsch.JSchException;
+
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -81,6 +83,7 @@ import gsoc.google.com.physicalweblgpoireader.settings.SettingsFragment;
 import gsoc.google.com.physicalweblgpoireader.utils.Constants;
 import gsoc.google.com.physicalweblgpoireader.utils.CustomXmlPullParser;
 import gsoc.google.com.physicalweblgpoireader.utils.FragmentStackManager;
+import gsoc.google.com.physicalweblgpoireader.utils.LGutils;
 
 /**
  * This class shows the ui list for all
@@ -165,7 +168,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             };
 
 
-
     /**
      * The connection to the service that discovers urls.
      */
@@ -238,7 +240,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 R.color.swipe_refresh_widget_second_color);
         mSwipeRefreshWidget.setOnRefreshListener(this);
 
-       // getActivity().getActionBar().setTitle(R.string.title_nearby_beacons);
+        // getActivity().getActionBar().setTitle(R.string.title_nearby_beacons);
         mNearbyDeviceAdapter = new NearbyBeaconsAdapter();
         setListAdapter(mNearbyDeviceAdapter);
         //Get the top drawable
@@ -248,7 +250,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         ListView listView = (ListView) rootView.findViewById(android.R.id.list);
         listView.setOnItemLongClickListener(mAdapterViewItemLongClickListener);
 
-       toolbar = ((AppCompatActivity) getActivity()).getSupportActionBar();
+        toolbar = ((AppCompatActivity) getActivity()).getSupportActionBar();
         toolbar.setDisplayHomeAsUpEnabled(true);
         //getActivity().getActionBar().setTitle(R.string.title_nearby_beacons);
     }
@@ -332,7 +334,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        ActionBar ab =  ((AppCompatActivity) getActivity()).getSupportActionBar();
+        ActionBar ab = ((AppCompatActivity) getActivity()).getSupportActionBar();
         if (ab != null) {
             ab.setDisplayHomeAsUpEnabled(true);
         }
@@ -347,14 +349,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
-//        inflater.inflate(R.menu.main, menu);
-//
-//        MenuItem itemAbout = menu.findItem(R.id.action_about);
-//        itemAbout.setVisible(true);
-//
-//        MenuItem itemSettings = menu.findItem(R.id.action_lg_settings);
-//        itemSettings.setVisible(true);
-
         super.onCreateOptionsMenu(menu, inflater);
     }
 
@@ -367,7 +361,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     @Override
     public void onStop() {
         super.onStop();
-     }
+    }
 
     @Override
     public void onResume() {
@@ -590,15 +584,28 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             ((TextView) view.findViewById(textViewId)).setText(text);
         }
 
-        private void addButton(View view, Button btn, final String url) {
+        private void addButtonImportAsPois(Button btn, final String url) {
 
-            btn.setText(getResources().getString(R.string.importStr));
+            btn.setText(getResources().getString(R.string.importAsPOISStr));
             btn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     requestedFileUrl = url;
-                    GetFileContentsTask getFileContentsTask = new GetFileContentsTask(requestedFileUrl);
-                    getFileContentsTask.execute();
+                    ImportAsPOISTask importAsPOISTask = new ImportAsPOISTask(requestedFileUrl);
+                    importAsPOISTask.execute();
+                }
+            });
+        }
+
+        private void addButtonImportAsVisit(Button btn, final String url) {
+
+            btn.setText(getResources().getString(R.string.importAsVisitStr));
+            btn.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    requestedFileUrl = url;
+                    ImportAsVisitTask importAsVisitTask = new ImportAsVisitTask(requestedFileUrl);
+                    importAsVisitTask.execute();
                 }
             });
         }
@@ -620,16 +627,20 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             setText(view, R.id.url, pwsResult.getSiteUrl());
             setText(view, R.id.description, pwsResult.getDescription());
             ((ImageView) view.findViewById(R.id.icon)).setImageBitmap(Utils.getBitmapIcon(mPwCollection, pwsResult));
-            Button btn = (Button) view.findViewById(R.id.btnImport);
+            Button btnImportAsPOIs = (Button) view.findViewById(R.id.btnImportAsPOIS);
+            Button btnImportAsVisit = (Button) view.findViewById(R.id.btnImportAsVisit);
             if (pwsResult.getSiteUrl().contains("drive")) {
-                btn.setVisibility(View.VISIBLE);
-                addButton(view, btn, pwsResult.getSiteUrl());
-                ((ImageView) view.findViewById(R.id.icon)).setVisibility(View.INVISIBLE);
+                btnImportAsPOIs.setVisibility(View.VISIBLE);
+                btnImportAsVisit.setVisibility(View.VISIBLE);
+
+                addButtonImportAsPois(btnImportAsPOIs, pwsResult.getSiteUrl());
+                addButtonImportAsVisit(btnImportAsVisit, pwsResult.getSiteUrl());
             } else {
-                btn.setVisibility(View.INVISIBLE);
-                ((ImageView) view.findViewById(R.id.icon)).setVisibility(View.VISIBLE);
+                btnImportAsPOIs.setVisibility(View.INVISIBLE);
+                btnImportAsVisit.setVisibility(View.INVISIBLE);
             }
 
+            (view.findViewById(R.id.icon)).setVisibility(View.VISIBLE);
             mPwCollection.setPwsEndpoint(Utils.PROD_ENDPOINT);
             UrlShortenerClient.getInstance(getActivity()).setEndpoint(Utils.PROD_ENDPOINT);
 
@@ -644,18 +655,100 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     }
 
 
-
-    private class GetFileContentsTask extends AsyncTask<Void, Void, List<POI>> {
+    private class ImportAsPOISTask extends AsyncTask<Void, Void, Boolean> {
 
         String fileId;
-        String downloadUrl ="";
+        String downloadUrl = "";
         private ProgressDialog dialog;
 
-        public GetFileContentsTask(String fileUrl) {
+        public ImportAsPOISTask(String fileUrl) {
             String[] urlSplitted = fileUrl.split("/");
             this.fileId = urlSplitted[5];
 
-           this.downloadUrl= "https://docs.google.com/uc?authuser=0&id="+this.fileId+"&export=download";
+            this.downloadUrl = "https://docs.google.com/uc?authuser=0&id=" + this.fileId + "&export=download";
+        }
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            if (dialog == null) {
+                dialog = new ProgressDialog(getActivity());
+                dialog.setMessage(getResources().getString(R.string.importingContents));
+                dialog.setIndeterminate(false);
+                dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+                dialog.setCancelable(true);
+                dialog.setCanceledOnTouchOutside(false);
+                dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+                    @Override
+                    public void onCancel(DialogInterface dialog) {
+                        cancel(true);
+                    }
+                });
+                dialog.show();
+            }
+        }
+
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            try {
+                return getFileContents();
+            } catch (Exception e) {
+                cancel(true);
+                return null;
+            }
+        }
+
+
+        private boolean getFileContents() throws IOException {
+            URL url = null;
+            boolean successfullyCopied = false;
+            HttpURLConnection urlConnection = null;
+            try {
+                url = new URL(this.downloadUrl);
+                urlConnection = (HttpURLConnection) url.openConnection();
+                InputStream in = new BufferedInputStream(urlConnection.getInputStream());
+
+                successfullyCopied = LGutils.copyFiletoLG(in, getActivity());
+
+                return successfullyCopied;
+
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (JSchException e) {
+                e.printStackTrace();
+            } finally {
+                urlConnection.disconnect();
+            }
+            return successfullyCopied;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean success) {
+            super.onPostExecute(success);
+            if (success) {
+                if (dialog != null) {
+                    dialog.hide();
+                    dialog.dismiss();
+                }
+            }
+        }
+    }
+
+
+    private class ImportAsVisitTask extends AsyncTask<Void, Void, List<POI>> {
+
+        String fileId;
+        String downloadUrl = "";
+        private ProgressDialog dialog;
+
+        public ImportAsVisitTask(String fileUrl) {
+            String[] urlSplitted = fileUrl.split("/");
+            this.fileId = urlSplitted[5];
+
+            this.downloadUrl = "https://docs.google.com/uc?authuser=0&id=" + this.fileId + "&export=download";
         }
 
         @Override
@@ -692,14 +785,18 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
         private List<POI> getFileContents() throws IOException {
             URL url = null;
+
             HttpURLConnection urlConnection = null;
             try {
                 url = new URL(this.downloadUrl);
                 urlConnection = (HttpURLConnection) url.openConnection();
                 InputStream in = new BufferedInputStream(urlConnection.getInputStream());
-                //String fileContentsString = readStream(in);
+
+
                 CustomXmlPullParser customXmlPullParser = new CustomXmlPullParser();
-                List<POI> poisList = customXmlPullParser.parse(in,getActivity());
+                List<POI> poisList = customXmlPullParser.parse(in, getActivity());
+
+                //successfullyCopied =  LGutils.copyFiletoLG(in,getActivity());
 
                 return poisList;
 
@@ -716,8 +813,8 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         @Override
         protected void onPostExecute(List<POI> poisList) {
             super.onPostExecute(poisList);
-            if(poisList!=null) {
-                createGalaxyDocument(poisList);
+            if (poisList != null) {
+                createTourGalaxyDocument(poisList);
 
                 if (dialog != null) {
                     dialog.hide();
@@ -726,12 +823,11 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             }
         }
 
-        private void createGalaxyDocument(List<POI> poisList) {
+        private void createTourGalaxyDocument(List<POI> poisList) {
             StringBuilder categoryStrB = new StringBuilder("importTest");
             StringBuilder finalQueriesStrB = new StringBuilder();
 
-
-            for(POI poi:poisList){
+            for (POI poi : poisList) {
                 finalQueriesStrB.append(categoryStrB);
                 finalQueriesStrB.append("@");
                 finalQueriesStrB.append(poi.getName());
@@ -751,15 +847,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             queriesString = finalQueriesStrB.toString();
         }
 
-        private String readStream(InputStream inputStream) throws IOException {
-            BufferedReader r = new BufferedReader(new InputStreamReader(inputStream));
-            StringBuilder total = new StringBuilder();
-            String line;
-            while ((line = r.readLine()) != null) {
-                total.append(line).append('\n');
-            }
-            return total.toString();
-        }
     }
 
 }

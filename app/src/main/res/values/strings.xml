@@ -27,7 +27,7 @@
 
 
 
-    <string name="checkingContents">Checking Contents...</string>
+    <string name="checkingContents">Checking Contents…</string>
     <string name="parsingError">Error in parsing XML</string>
 
 
@@ -44,8 +44,14 @@
     <string name="error_incorrect_password">Incorrect Password</string>
     <string name="passwords_no_match">Passwords don\'t match</string>
     <string name="close_body">Are you sure that you want to leave?</string>
-    <string name="administrative_password">Enter Password</string>
-    <string name="enter__admin_password">Enter password</string>
+    <string name="administrative_password">Enter Admin Password</string>
+    <string name="lg_user">LG UserName</string>
+    <string name="lg_password">LG Password</string>
+    <string name="lg_ssh">LG SSH Port</string>
+    <string name="defaultKML">Name of the KML to create in LG (located inside /var/www folder)</string>
+    <string name="importAsPOISStr">Import as POIS in LG</string>
+    <string name="importAsVisitStr">Import as Visit in LG</string>
+    <string name="importingContents">Importing Contents into Liquid Galaxy…</string>
 
 
 </resources>
