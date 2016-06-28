@@ -48,8 +48,8 @@
     <string name="lg_user">LG UserName</string>
     <string name="lg_password">LG Password</string>
     <string name="lg_ssh">LG SSH Port</string>
-    <string name="defaultKML">(Only for import as POIS)Name of the KML to create in LG (located inside /var/www folder)</string>
-    <string name="defaultVisitPoiDuration">(Only for import as Tour) Default duration of each POI in seconds</string>
+    <string name="defaultKML">(import as POIS)\n Name of the KML created in LG (located inside /var/www folder)</string>
+    <string name="defaultVisitPoiDuration">(import as Tour)\n Stop in POI duration (seconds)</string>
     <string name="importAsPOISStr">Import as POIS in LG</string>
     <string name="importAsVisitStr">Import as Tour in LG</string>
     <string name="importingContents">Importing Contents into Liquid Galaxy…</string>
