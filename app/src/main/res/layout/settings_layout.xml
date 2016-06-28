@@ -1,140 +1,150 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white">
+    android:background="@color/white"
+    android:orientation="vertical">
 
-
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_password_1"
-        android:layout_width="match_parent"
+    <ScrollView
+        android:layout_width="fill_parent"
         android:layout_height="wrap_content">
 
-        <EditText
-            android:id="@+id/lg_password_1_input"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/administrative_password"
-            android:inputType="textPassword" />
-    </android.support.design.widget.TextInputLayout>
+            android:orientation="vertical">
 
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_password_2"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_password_1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-        <EditText
-            android:id="@+id/lg_password_2_input"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/enter_password_again"
-            android:inputType="textPassword" />
-    </android.support.design.widget.TextInputLayout>
+                <EditText
+                    android:id="@+id/lg_password_1_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/administrative_password"
+                    android:inputType="textPassword" />
+            </android.support.design.widget.TextInputLayout>
 
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_password_2"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_ip_input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/lg_ip_text"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/lg_ip"
-            android:inputType="number"
-            android:digits="0123456789." />
-    </android.support.design.widget.TextInputLayout>
-
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_user_input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/lg_user"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/lg_user"
-            android:inputType="text" />
-    </android.support.design.widget.TextInputLayout>
-
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_password_input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/lg_password"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/lg_password"
-            android:inputType="text" />
-    </android.support.design.widget.TextInputLayout>
-
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_ssh_input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/lg_ssh"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/lg_ssh"
-            android:inputType="numberDecimal" />
-    </android.support.design.widget.TextInputLayout>
-
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/lg_defaultKML_input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/lg_defaultKML"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/defaultKML"
-            android:inputType="text" />
-    </android.support.design.widget.TextInputLayout>
-
-    <android.support.design.widget.TextInputLayout
-        android:id="@+id/defaultVisitPoiDuration_input"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <EditText
-            android:id="@+id/defaultVisitPoiDuration"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/defaultVisitPoiDuration"
-            android:inputType="numberDecimal" />
-    </android.support.design.widget.TextInputLayout>
+                <EditText
+                    android:id="@+id/lg_password_2_input"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/enter_password_again"
+                    android:inputType="textPassword" />
+            </android.support.design.widget.TextInputLayout>
 
 
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_ip_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_gravity="center_horizontal">
+                <EditText
+                    android:id="@+id/lg_ip_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:digits="0123456789."
+                    android:hint="@string/lg_ip"
+                    android:inputType="number" />
+            </android.support.design.widget.TextInputLayout>
 
-        <Button
-            android:id="@+id/btn_save_preferences"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:background="@color/blue_grey_900"
-            android:text="@string/save"
-            android:textColor="@android:color/white" />
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_user_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/btn_cancel_preferences"
-            android:layout_width="fill_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="5dp"
-            android:background="@color/blue_grey_900"
-            android:text="@string/cancel"
-            android:textColor="@android:color/white" />
+                <EditText
+                    android:id="@+id/lg_user"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/lg_user"
+                    android:inputType="text" />
+            </android.support.design.widget.TextInputLayout>
+
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_password_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <EditText
+                    android:id="@+id/lg_password"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/lg_password"
+                    android:inputType="text" />
+            </android.support.design.widget.TextInputLayout>
+
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_ssh_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <EditText
+                    android:id="@+id/lg_ssh"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/lg_ssh"
+                    android:inputType="numberDecimal" />
+            </android.support.design.widget.TextInputLayout>
+
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/lg_defaultKML_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <EditText
+                    android:id="@+id/lg_defaultKML"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/defaultKML"
+                    android:inputType="text" />
+            </android.support.design.widget.TextInputLayout>
+
+            <android.support.design.widget.TextInputLayout
+                android:id="@+id/defaultVisitPoiDuration_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <EditText
+                    android:id="@+id/defaultVisitPoiDuration"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/defaultVisitPoiDuration"
+                    android:inputType="numberDecimal" />
+            </android.support.design.widget.TextInputLayout>
+
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btn_save_preferences"
+                    android:layout_width="fill_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@color/blue_grey_900"
+                    android:text="@string/save"
+                    android:textColor="@android:color/white" />
+
+                <Button
+                    android:id="@+id/btn_cancel_preferences"
+                    android:layout_width="fill_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:background="@color/blue_grey_900"
+                    android:text="@string/cancel"
+                    android:textColor="@android:color/white" />
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
     </LinearLayout>
-</LinearLayout>
