@@ -176,23 +176,19 @@ public class LGutils {
         return b;
     }
 
-    public static boolean visitPOIS(List<POI> poisList, Activity activity) {
+    public static boolean visitPOIS(List<POI> poisList, Activity activity) throws JSchException {
         return sendTourPOIs(poisList,activity);
+
     }
 
 
-    private static boolean sendTourPOIs(List<POI> poisList, Activity activity) {
+    private static boolean sendTourPOIs(List<POI> poisList, Activity activity) throws JSchException {
         sendFirstTourPOI(poisList.get(0),activity);
        return sendOtherTourPOIs(poisList,activity);
     }
 
-    private static void sendFirstTourPOI(POI firstPoi,Activity activity) {
-        try {
-            setConnectionWithLiquidGalaxy(buildCommand(firstPoi),activity);
-        } catch (JSchException e) {
-            e.printStackTrace();
-            AndroidUtils.showMessage("Error in connection with Liquid Galaxy.",activity);
-        }
+    private static void sendFirstTourPOI(POI firstPoi,Activity activity) throws JSchException {
+        setConnectionWithLiquidGalaxy(buildCommand(firstPoi),activity);
     }
 
     private static boolean sendOtherTourPOIs(List<POI> pois, Activity activity) {

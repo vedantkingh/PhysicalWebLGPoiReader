@@ -54,6 +54,7 @@
     <string name="importAsVisitStr">Import as Tour in LG</string>
     <string name="importingContents">Importing Contents into Liquid Galaxy…</string>
     <string name="importingContentsVisit">Importing Contents and visiting them into Liquid Galaxy…</string>
+    <string name="connection_failure">Error in connection with Liquid Galaxy. Please, check credentials and try again</string>
 
 
 </resources>

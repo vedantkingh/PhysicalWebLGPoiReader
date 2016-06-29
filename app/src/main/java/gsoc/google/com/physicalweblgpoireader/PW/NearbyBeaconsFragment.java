@@ -77,6 +77,7 @@ import gsoc.google.com.physicalweblgpoireader.PW.collection.PwsResult;
 import gsoc.google.com.physicalweblgpoireader.R;
 import gsoc.google.com.physicalweblgpoireader.model.POI;
 import gsoc.google.com.physicalweblgpoireader.settings.SettingsFragment;
+import gsoc.google.com.physicalweblgpoireader.utils.AndroidUtils;
 import gsoc.google.com.physicalweblgpoireader.utils.Constants;
 import gsoc.google.com.physicalweblgpoireader.utils.CustomXmlPullParser;
 import gsoc.google.com.physicalweblgpoireader.utils.FragmentStackManager;
@@ -718,18 +719,19 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 e.printStackTrace();
             } finally {
                 urlConnection.disconnect();
+                return successfullyCopied;
             }
-            return successfullyCopied;
         }
 
         @Override
         protected void onPostExecute(Boolean success) {
             super.onPostExecute(success);
-            if (success) {
-                if (dialog != null) {
-                    dialog.hide();
-                    dialog.dismiss();
-                }
+            if (dialog != null) {
+                dialog.hide();
+                dialog.dismiss();
+            }
+            if (!success) {
+                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure),getActivity());
             }
         }
     }
@@ -795,54 +797,30 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
                 success = LGutils.visitPOIS(poisList,getActivity());
 
-                //createTourGalaxyDocument(poisList);
-
                 return success;
 
             } catch (MalformedURLException e) {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
+            } catch (JSchException e) {
+                e.printStackTrace();
             } finally {
                 urlConnection.disconnect();
+                return success;
             }
-            return success;
         }
 
         @Override
         protected void onPostExecute(Boolean success) {
             super.onPostExecute(success);
-            if (success) {
-                if (dialog != null) {
-                    dialog.hide();
-                    dialog.dismiss();
-                }
+            if (dialog != null) {
+                dialog.hide();
+                dialog.dismiss();
             }
-        }
-
-
-        private void createTourGalaxyDocument(List<POI> poisList) {
-            StringBuilder categoryStrB = new StringBuilder("importTest");
-            StringBuilder finalQueriesStrB = new StringBuilder();
-
-            for (POI poi : poisList) {
-                finalQueriesStrB.append(categoryStrB);
-                finalQueriesStrB.append("@");
-                finalQueriesStrB.append(poi.getName());
-                finalQueriesStrB.append("@");
-                finalQueriesStrB.append("flytoview=<LookAt><longitude>");
-                finalQueriesStrB.append(poi.getPoint().getLongitude());
-                finalQueriesStrB.append("</longitude><latitude>");
-                finalQueriesStrB.append(poi.getPoint().getLatitude());
-                finalQueriesStrB.append("</latitude>");
-                finalQueriesStrB.append("<altitude>0</altitude>");
-                finalQueriesStrB.append("<heading>78.8295920519042</heading>");
-                finalQueriesStrB.append("<tilt>61.91707350294211</tilt>");
-                finalQueriesStrB.append("<range>338.9856138972227</range>");
-                finalQueriesStrB.append("<gx:altitudeMode>relativeToSeaFloor</gx:altitudeMode></LookAt>");
-                finalQueriesStrB.append("\n");
+            if (!success) {
+                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure),getActivity());
             }
-            queriesString = finalQueriesStrB.toString();
         }
 
     }
