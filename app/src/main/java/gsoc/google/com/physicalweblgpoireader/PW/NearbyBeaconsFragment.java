@@ -263,10 +263,15 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             case R.id.action_about:
                 showAbout();
                 return true;
+            case R.id.rollback_action:
+                RestorePOISTask restorePoisTask = new RestorePOISTask();
+                restorePoisTask.execute();
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
     }
+
 
     private void showAbout() {
         final Dialog dialog = new Dialog(getActivity());
@@ -707,16 +712,28 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 urlConnection = (HttpURLConnection) url.openConnection();
                 InputStream in = new BufferedInputStream(urlConnection.getInputStream());
 
-                successfullyCopied = LGutils.copyFiletoLG(in, getActivity());
+                // successfullyCopied = LGutils.copyFiletoLG(in, getActivity());
+                CustomXmlPullParser customXmlPullParser = new CustomXmlPullParser();
+                List<POI> poisList = customXmlPullParser.parse(in, getActivity());
+
+                String queriesStr = LGutils.createQueriesFile(poisList);
+
+                successfullyCopied = LGutils.copyQueriesFile(queriesStr, getActivity());
 
                 return successfullyCopied;
 
             } catch (MalformedURLException e) {
                 e.printStackTrace();
+                if (dialog != null) {
+                    dialog.hide();
+                    dialog.dismiss();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
-            } catch (JSchException e) {
-                e.printStackTrace();
+                if (dialog != null) {
+                    dialog.hide();
+                    dialog.dismiss();
+                }
             } finally {
                 urlConnection.disconnect();
                 return successfullyCopied;
@@ -731,7 +748,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 dialog.dismiss();
             }
             if (!success) {
-                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure),getActivity());
+                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure), getActivity());
             }
         }
     }
@@ -784,7 +801,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
         private boolean importAsVisit() throws IOException {
             URL url = null;
-            boolean success= false;
+            boolean success = false;
             HttpURLConnection urlConnection = null;
             try {
                 url = new URL(this.downloadUrl);
@@ -795,7 +812,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 CustomXmlPullParser customXmlPullParser = new CustomXmlPullParser();
                 List<POI> poisList = customXmlPullParser.parse(in, getActivity());
 
-                success = LGutils.visitPOIS(poisList,getActivity());
+                success = LGutils.visitPOIS(poisList, getActivity());
 
                 return success;
 
@@ -819,7 +836,63 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 dialog.dismiss();
             }
             if (!success) {
-                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure),getActivity());
+                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure), getActivity());
+            }
+        }
+    }
+
+    private class RestorePOISTask extends AsyncTask<Void, Void, Boolean> {
+
+        private ProgressDialog dialog;
+
+        public RestorePOISTask() {
+
+        }
+
+        @Override
+        protected void onPreExecute() {
+            super.onPreExecute();
+            if (dialog == null) {
+                dialog = new ProgressDialog(getActivity());
+                dialog.setMessage(getResources().getString(R.string.restoringPOIS));
+                dialog.setIndeterminate(false);
+                dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
+                dialog.setCancelable(true);
+                dialog.setCanceledOnTouchOutside(false);
+                dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
+                    @Override
+                    public void onCancel(DialogInterface dialog) {
+                        cancel(true);
+                    }
+                });
+                dialog.show();
+            }
+        }
+
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            try {
+                return LGutils.rollbackQueries(getActivity());
+            } catch (Exception e) {
+                cancel(true);
+                if (dialog != null) {
+                    dialog.hide();
+                    dialog.dismiss();
+                }
+                return null;
+            }
+        }
+
+        @Override
+        protected void onPostExecute(Boolean success) {
+            super.onPostExecute(success);
+            if (dialog != null) {
+                dialog.hide();
+                dialog.dismiss();
+            }
+            if (!success) {
+                AndroidUtils.showMessage(getResources().getString(R.string.connection_failure), getActivity());
             }
         }
 

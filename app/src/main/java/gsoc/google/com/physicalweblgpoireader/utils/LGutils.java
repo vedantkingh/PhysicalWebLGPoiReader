@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.preference.PreferenceManager;
+import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 
 import com.jcraft.jsch.Channel;
@@ -31,7 +32,7 @@ import gsoc.google.com.physicalweblgpoireader.model.POI;
  */
 public class LGutils {
 
-    public static boolean copyFiletoLG(InputStream is,Activity activity) throws JSchException, IOException {
+    /*public static boolean copyFiletoLG(InputStream is,Activity activity) throws JSchException, IOException {
 
         boolean success = true;
 
@@ -119,9 +120,29 @@ public class LGutils {
         session.disconnect();
 
         return success;
+    }*/
+
+    private static File createFileFromString(String contents,Activity activity){
+        File file = new File(activity.getCacheDir(),"queries.txt");
+        try {
+            FileOutputStream fop = new FileOutputStream(file);
+            byte[] contentInBytes = contents.getBytes();
+
+            fop.write(contentInBytes);
+            fop.flush();
+            fop.close();
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return file;
+
     }
 
-    private static File getFileFromInputStream(InputStream is, Activity activity, String lgKMLName) throws IOException {
+ /*   private static File getFileFromInputStream(InputStream is, Activity activity, String lgKMLName) throws IOException {
         try {
             File file = new File(activity.getCacheDir(),"tmpFileKML.kml");
             OutputStream output = new FileOutputStream(file);
@@ -148,7 +169,7 @@ public class LGutils {
         }
         return null;
     }
-
+*/
     static int checkAck(InputStream in) throws IOException{
         int b=in.read();
         // b may be 0 for success,
@@ -244,4 +265,151 @@ public class LGutils {
         return baos.toString();
     }
 
+    public static String createQueriesFile(List<POI> poisList) {
+        String finalString = "";
+        for(POI poi:poisList){
+            finalString+=buildCommandForQueries(poi);
+        }
+
+        return finalString;
+    }
+
+    private static String buildCommandForQueries(POI poi) {
+        return "earth@"+poi.getName()+"@flytoview=<LookAt><longitude>" + (poi.getPoint().getLongitude()) + "</longitude><latitude>" + (poi.getPoint().getLatitude()) + "</latitude><altitude>" + (0) + "</altitude><heading>" + (78) + "</heading><tilt>" + (61) + "</tilt><range>" + (300) + "</range><gx:altitudeMode>" + "relativeToSeaFloor" + "</gx:altitudeMode></LookAt>\n";
+    }
+
+    public static boolean copyQueriesFile(String queriesStr, FragmentActivity activity) throws JSchException, IOException {
+
+        boolean ptimestamp = true;
+        boolean success = false;
+
+        String renameCommand = "mv /var/www/php-interface/queries.txt /var/www/php-interface/queries.txt_";
+        String queriesPath = "/var/www/php-interface/queries.txt";
+
+        SharedPreferences prefs = activity.getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE);
+        String user = prefs.getString("lgUser", "lg");
+        String password = prefs.getString("lgPassword", "lqgalaxy");
+        String lgIp = prefs.getString("lgIP", "");
+        String lgPort = prefs.getString("lgPort", "22");
+
+        Session session = new JSch().getSession(user,lgIp, Integer.parseInt(lgPort));
+        session.setPassword(password);
+        Properties prop = new Properties();
+        prop.put("StrictHostKeyChecking", "no");
+        session.setConfig(prop);
+        session.connect();
+
+        ChannelExec channelssh = (ChannelExec) session.openChannel("exec");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        channelssh.setOutputStream(baos);
+        channelssh.setCommand(renameCommand);
+        channelssh.connect();
+        channelssh.disconnect();
+
+        String command="scp " + (ptimestamp ? "-p" :"") +" -t "+queriesPath;
+        Channel channel=session.openChannel("exec");
+        ((ChannelExec)channel).setCommand(command);
+
+        // get I/O streams for remote scp
+        OutputStream out= channel.getOutputStream();
+        InputStream in= channel.getInputStream();
+
+        channel.connect();
+
+        if(checkAck(in)!=0){
+            success = false;
+            System.exit(0);
+        }
+
+        File fileToCopy = createFileFromString(queriesStr,activity);
+
+        if(ptimestamp){
+            command="T "+(fileToCopy.lastModified()/1000)+" 0";
+            // The access time should be sent here,
+            // but it is not accessible with JavaAPI ;-<
+            command+=(" "+(fileToCopy.lastModified()/1000)+" 0\n");
+            out.write(command.getBytes()); out.flush();
+            if(checkAck(in)!=0){
+                success = false;
+                System.exit(0);
+            }
+        }
+
+        // send "C0644 filesize filename", where filename should not include '/'
+        long filesize=fileToCopy.length();
+        command="C0644 "+filesize+" ";
+        if(fileToCopy.getPath().lastIndexOf('/')>0){
+            command+=fileToCopy.getPath().substring(fileToCopy.getPath().lastIndexOf('/')+1);
+        }
+        else{
+            command+=fileToCopy.getPath();
+        }
+        command+="\n";
+        out.write(command.getBytes()); out.flush();
+        if(checkAck(in)!=0){
+            success = false;
+            System.exit(0);
+        }
+
+        // send a content of lfile
+        FileInputStream  fis=new FileInputStream(fileToCopy);
+        byte[] buf=new byte[1024];
+        while(true){
+            int len=fis.read(buf, 0, buf.length);
+            if(len<=0) break;
+            out.write(buf, 0, len); //out.flush();
+        }
+        fis.close();
+        fis=null;
+        // send '\0'
+        buf[0]=0; out.write(buf, 0, 1); out.flush();
+        if(checkAck(in)!=0){
+            success = false;
+            System.exit(0);
+        }
+        out.close();
+
+        channel.disconnect();
+        session.disconnect();
+        return success;
+    }
+
+    public static boolean rollbackQueries(FragmentActivity activity)  {
+
+        boolean success = true;
+
+        String renameCommand = "mv /var/www/php-interface/queries.txt_ /var/www/php-interface/queries.txt";
+        String deleteCommand = "rm -f /var/www/php-interface/queries.txt_";
+
+        SharedPreferences prefs = activity.getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE);
+        String user = prefs.getString("lgUser", "lg");
+        String password = prefs.getString("lgPassword", "lqgalaxy");
+        String lgIp = prefs.getString("lgIP", "");
+        String lgPort = prefs.getString("lgPort", "22");
+
+        Session session = null;
+        try {
+            session = new JSch().getSession(user,lgIp, Integer.parseInt(lgPort));
+            session.setPassword(password);
+            Properties prop = new Properties();
+            prop.put("StrictHostKeyChecking", "no");
+            session.setConfig(prop);
+            session.connect();
+            ChannelExec channelssh = (ChannelExec) session.openChannel("exec");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            channelssh.setOutputStream(baos);
+            channelssh.setCommand(renameCommand);
+            channelssh.connect();
+            channelssh.disconnect();
+
+            channelssh = (ChannelExec) session.openChannel("exec");
+            channelssh.setCommand(deleteCommand);
+            channelssh.connect();
+            channelssh.disconnect();
+        } catch (JSchException e) {
+            e.printStackTrace();
+            success = false;
+        }
+        return success;
+    }
 }

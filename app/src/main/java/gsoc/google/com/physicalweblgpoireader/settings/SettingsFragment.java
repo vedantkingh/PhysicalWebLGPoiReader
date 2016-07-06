@@ -34,7 +34,7 @@ public class SettingsFragment extends Fragment {
     private EditText lgUser;
     private EditText lgPassword;
     private EditText lgSSH;
-    private EditText lgKMLName;
+//    private EditText lgKMLName;
     private EditText defaultVisitPoiDuration;
 
     private TextInputLayout password1;
@@ -78,7 +78,7 @@ public class SettingsFragment extends Fragment {
         String lgPasswordPrefs = prefs.getString("lgPassword", "lqgalaxy");
         String lgSShPort = prefs.getString("lgPort", "22");
 
-        String lgKMLNameStr = prefs.getString("lgKMLName", "test1.kml");
+//        String lgKMLNameStr = prefs.getString("lgKMLName", "test1.kml");
 
         String defaultPoisDurationPrefs = prefs.getString("defaultVisitPoiDuration", "10");
 
@@ -104,8 +104,8 @@ public class SettingsFragment extends Fragment {
         lgSSH =  (EditText) rootView.findViewById(R.id.lg_ssh);
         lgSSH.setText(lgSShPort);
 
-        lgKMLName =  (EditText) rootView.findViewById(R.id.lg_defaultKML);
-        lgKMLName.setText(lgKMLNameStr);
+//        lgKMLName =  (EditText) rootView.findViewById(R.id.lg_defaultKML);
+//        lgKMLName.setText(lgKMLNameStr);
 
 
         defaultVisitPoiDuration =  (EditText) rootView.findViewById(R.id.defaultVisitPoiDuration);
@@ -129,7 +129,7 @@ public class SettingsFragment extends Fragment {
                     editor.putString("lgUser", lgUser.getText() != null ? lgUser.getText().toString() : "");
                     editor.putString("lgPassword", lgPassword.getText() != null ? lgPassword.getText().toString() : "");
                     editor.putString("lgPort", lgSSH.getText() != null ? lgSSH.getText().toString() : "");
-                    editor.putString("lgKMLName", lgKMLName.getText() != null ? lgKMLName.getText().toString() : "");
+//                    editor.putString("lgKMLName", lgKMLName.getText() != null ? lgKMLName.getText().toString() : "");
                     editor.putString("defaultVisitPoiDuration", defaultVisitPoiDuration.getText() != null ? defaultVisitPoiDuration.getText().toString() : "");
                     editor.commit();
 
