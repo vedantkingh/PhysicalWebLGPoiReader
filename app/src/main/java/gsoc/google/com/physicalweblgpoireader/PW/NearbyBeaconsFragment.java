@@ -346,8 +346,14 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     public View onCreateView(LayoutInflater layoutInflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View rootView = layoutInflater.inflate(R.layout.fragment_nearby_beacons, container, false);
-        initialize(rootView);
+      //  initialize(rootView);
         return rootView;
+    }
+
+    @Override
+    public void onViewCreated(View view, Bundle savedInstanceState) {
+        super.onViewCreated(view, savedInstanceState);
+        initialize(view);
     }
 
     @Override
@@ -364,6 +370,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     @Override
     public void onStop() {
         super.onStop();
+        stopScanningDisplay();
     }
 
     @Override
@@ -486,37 +493,39 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     }
 
     private void showListView() {
-        if (getListView().getVisibility() == View.VISIBLE) {
-            return;
+        if(getListView()!=null) {
+            if (getListView().getVisibility() == View.VISIBLE) {
+                return;
+            }
+
+            mSwipeRefreshWidget.setRefreshing(false);
+            getListView().setAlpha(0f);
+            getListView().setVisibility(View.VISIBLE);
+            safeNotifyChange();
+            ObjectAnimator alphaAnimation = ObjectAnimator.ofFloat(getListView(), "alpha", 0f, 1f);
+            alphaAnimation.setDuration(400);
+            alphaAnimation.setInterpolator(new DecelerateInterpolator());
+            alphaAnimation.addListener(new AnimatorListener() {
+                @Override
+                public void onAnimationStart(Animator animation) {
+                }
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    mScanningAnimationTextView.setAlpha(0f);
+                    mScanningAnimationDrawable.stop();
+                }
+
+                @Override
+                public void onAnimationRepeat(Animator animation) {
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                }
+            });
+            alphaAnimation.start();
         }
-
-        mSwipeRefreshWidget.setRefreshing(false);
-        getListView().setAlpha(0f);
-        getListView().setVisibility(View.VISIBLE);
-        safeNotifyChange();
-        ObjectAnimator alphaAnimation = ObjectAnimator.ofFloat(getListView(), "alpha", 0f, 1f);
-        alphaAnimation.setDuration(400);
-        alphaAnimation.setInterpolator(new DecelerateInterpolator());
-        alphaAnimation.addListener(new AnimatorListener() {
-            @Override
-            public void onAnimationStart(Animator animation) {
-            }
-
-            @Override
-            public void onAnimationEnd(Animator animation) {
-                mScanningAnimationTextView.setAlpha(0f);
-                mScanningAnimationDrawable.stop();
-            }
-
-            @Override
-            public void onAnimationRepeat(Animator animation) {
-            }
-
-            @Override
-            public void onAnimationCancel(Animator animation) {
-            }
-        });
-        alphaAnimation.start();
     }
 
     /**
@@ -724,11 +733,13 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
             } catch (MalformedURLException e) {
                 e.printStackTrace();
+                successfullyCopied = false;
                 if (dialog != null) {
                     dialog.hide();
                     dialog.dismiss();
                 }
             } catch (IOException e) {
+                successfullyCopied = false;
                 e.printStackTrace();
                 if (dialog != null) {
                     dialog.hide();

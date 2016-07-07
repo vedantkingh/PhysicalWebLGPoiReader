@@ -113,6 +113,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        AndroidUtils.clearApplicationData(getApplication());
+        finish();
+    }
+
+    @Override
     public void onBackPressed() {
         try {
             if (!fragmentStackManager.popBackStatFragment()) {

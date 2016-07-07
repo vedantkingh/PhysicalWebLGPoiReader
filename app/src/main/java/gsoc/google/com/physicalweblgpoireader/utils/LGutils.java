@@ -281,7 +281,7 @@ public class LGutils {
     public static boolean copyQueriesFile(String queriesStr, FragmentActivity activity) throws JSchException, IOException {
 
         boolean ptimestamp = true;
-        boolean success = false;
+        boolean success = true;
 
         String renameCommand = "mv /var/www/php-interface/queries.txt /var/www/php-interface/queries.txt_";
         String queriesPath = "/var/www/php-interface/queries.txt";
