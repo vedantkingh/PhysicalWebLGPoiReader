@@ -32,7 +32,7 @@ import gsoc.google.com.physicalweblgpoireader.model.POI;
  */
 public class LGutils {
 
-    /*public static boolean copyFiletoLG(InputStream is,Activity activity) throws JSchException, IOException {
+    public static boolean copyFiletoLG(InputStream is,Activity activity) throws JSchException, IOException {
 
         boolean success = true;
 
@@ -42,7 +42,7 @@ public class LGutils {
         String lgIp = prefs.getString("lgIP", "");
         String lgPort = prefs.getString("lgPort", "22");
 
-        String lgKMLName = "/var/www/"+prefs.getString("lgKMLName","test1.kml");
+        String lgKMLName = "/var/www/"+prefs.getString("lgKMLName","BYOP.kml");
 
         Session session = new JSch().getSession(user,lgIp, Integer.parseInt(lgPort));
         session.setPassword(password);
@@ -120,7 +120,7 @@ public class LGutils {
         session.disconnect();
 
         return success;
-    }*/
+    }
 
     private static File createFileFromString(String contents,Activity activity){
         File file = new File(activity.getCacheDir(),"queries.txt");
@@ -142,7 +142,7 @@ public class LGutils {
 
     }
 
- /*   private static File getFileFromInputStream(InputStream is, Activity activity, String lgKMLName) throws IOException {
+   private static File getFileFromInputStream(InputStream is, Activity activity, String lgKMLName) throws IOException {
         try {
             File file = new File(activity.getCacheDir(),"tmpFileKML.kml");
             OutputStream output = new FileOutputStream(file);
@@ -169,7 +169,7 @@ public class LGutils {
         }
         return null;
     }
-*/
+
     static int checkAck(InputStream in) throws IOException{
         int b=in.read();
         // b may be 0 for success,
@@ -412,4 +412,65 @@ public class LGutils {
         }
         return success;
     }
+
+
+
+    public static boolean rollbackKML(FragmentActivity activity) {
+        boolean success = true;
+
+
+        String deleteCommand = "rm -f /var/www/BYOP.kml";
+        String recreateCommand = "echo '"+getKMLSkeleton()+"' > /var/www/BYOP.kml";
+//        String relaunchCommand = "/home/lg/bin/lg-relaunch > /home/lg/log.txt";
+
+        SharedPreferences prefs = activity.getSharedPreferences(Constants.PREFERENCES_NAME, Context.MODE_PRIVATE);
+        String user = prefs.getString("lgUser", "lg");
+        String password = prefs.getString("lgPassword", "lqgalaxy");
+        String lgIp = prefs.getString("lgIP", "");
+        String lgPort = prefs.getString("lgPort", "22");
+
+        Session session = null;
+        try {
+            session = new JSch().getSession(user,lgIp, Integer.parseInt(lgPort));
+            session.setPassword(password);
+            Properties prop = new Properties();
+            prop.put("StrictHostKeyChecking", "no");
+            session.setConfig(prop);
+            session.connect();
+            ChannelExec channelssh = (ChannelExec) session.openChannel("exec");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            channelssh.setOutputStream(baos);
+            channelssh.setCommand(deleteCommand);
+            channelssh.connect();
+            channelssh.disconnect();
+
+            channelssh = (ChannelExec) session.openChannel("exec");
+            channelssh.setCommand(recreateCommand);
+            channelssh.connect();
+            channelssh.disconnect();
+
+//            channelssh = (ChannelExec) session.openChannel("exec");
+//            channelssh.setCommand(relaunchCommand);
+//            channelssh.connect();
+//            channelssh.disconnect();
+        } catch (JSchException e) {
+            e.printStackTrace();
+            success = false;
+        }
+        return success;
+    }
+
+    private static String getKMLSkeleton() {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
+                "  <Document>\n" +
+                "    <name></name>\n" +
+                "    <open></open>\n" +
+                "    <description></description>\n" +
+                "    <Folder>\n" +
+                "  </Folder>\n" +
+                "</Document>\n" +
+                "</kml>";
+    }
+
 }

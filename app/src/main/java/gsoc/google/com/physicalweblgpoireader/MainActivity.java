@@ -115,7 +115,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onPause() {
         super.onPause();
-        AndroidUtils.clearApplicationData(getApplication());
         finish();
     }
 
@@ -127,7 +126,6 @@ public class MainActivity extends AppCompatActivity {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         dialog.dismiss();
-                        AndroidUtils.clearApplicationData(getApplication());
                         finish();
                         System.exit(0);
                     }

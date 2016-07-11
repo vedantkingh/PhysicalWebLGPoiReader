@@ -21,7 +21,6 @@ import android.animation.Animator.AnimatorListener;
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.app.Dialog;
-
 import android.app.ProgressDialog;
 import android.content.ComponentName;
 import android.content.Context;
@@ -54,6 +53,7 @@ import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -238,7 +238,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 R.color.swipe_refresh_widget_second_color);
         mSwipeRefreshWidget.setOnRefreshListener(this);
 
-        // getActivity().getActionBar().setTitle(R.string.title_nearby_beacons);
         mNearbyDeviceAdapter = new NearbyBeaconsAdapter();
         setListAdapter(mNearbyDeviceAdapter);
         //Get the top drawable
@@ -250,7 +249,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
         toolbar = ((AppCompatActivity) getActivity()).getSupportActionBar();
         toolbar.setDisplayHomeAsUpEnabled(true);
-        //getActivity().getActionBar().setTitle(R.string.title_nearby_beacons);
     }
 
 
@@ -599,6 +597,14 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         private void addButtonImportAsPois(Button btn, final String url) {
 
             btn.setText(getResources().getString(R.string.importAsPOISStr));
+            btn.setBackground(getActivity().getResources().getDrawable(R.drawable.button_rounded_grey));
+
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(0, 0, 5, 0);
+            btn.setLayoutParams(params);
             btn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -612,6 +618,13 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         private void addButtonImportAsVisit(Button btn, final String url) {
 
             btn.setText(getResources().getString(R.string.importAsVisitStr));
+            btn.setBackground(getActivity().getResources().getDrawable(R.drawable.button_rounded_grey));
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            params.setMargins(5, 0, 0, 0);
+            btn.setLayoutParams(params);
             btn.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -722,7 +735,12 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 InputStream in = new BufferedInputStream(urlConnection.getInputStream());
 
                 // successfullyCopied = LGutils.copyFiletoLG(in, getActivity());
+                LGutils.copyFiletoLG(in, getActivity());
                 CustomXmlPullParser customXmlPullParser = new CustomXmlPullParser();
+
+                url = new URL(this.downloadUrl);
+                urlConnection = (HttpURLConnection) url.openConnection();
+                in = new BufferedInputStream(urlConnection.getInputStream());
                 List<POI> poisList = customXmlPullParser.parse(in, getActivity());
 
                 String queriesStr = LGutils.createQueriesFile(poisList);
@@ -827,11 +845,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
                 return success;
 
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (JSchException e) {
+            } catch (IOException | JSchException e) {
                 e.printStackTrace();
             } finally {
                 urlConnection.disconnect();
@@ -884,7 +898,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         @Override
         protected Boolean doInBackground(Void... params) {
             try {
-                return LGutils.rollbackQueries(getActivity());
+                return LGutils.rollbackQueries(getActivity()) && LGutils.rollbackKML(getActivity());
             } catch (Exception e) {
                 cancel(true);
                 if (dialog != null) {
