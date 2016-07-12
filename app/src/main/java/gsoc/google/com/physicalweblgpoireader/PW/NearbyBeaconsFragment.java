@@ -16,9 +16,6 @@
 
 package gsoc.google.com.physicalweblgpoireader.PW;
 
-import android.animation.Animator;
-import android.animation.Animator.AnimatorListener;
-import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.app.Dialog;
 import android.app.ProgressDialog;
@@ -47,7 +44,6 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.animation.DecelerateInterpolator;
 import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.Button;
@@ -96,9 +92,13 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         SwipeRefreshWidget.OnRefreshListener {
 
     private static final String TAG = "NearbyBeaconsFragment";
-    private static final long FIRST_SCAN_TIME_MILLIS = TimeUnit.SECONDS.toMillis(2);
-    private static final long SECOND_SCAN_TIME_MILLIS = TimeUnit.SECONDS.toMillis(5);
-    private static final long THIRD_SCAN_TIME_MILLIS = TimeUnit.SECONDS.toMillis(10);
+    private static final long FIRST_SCAN_TIME_MILLIS = TimeUnit.SECONDS.toMillis(1);
+    private static final long SECOND_SCAN_TIME_MILLIS = TimeUnit.SECONDS.toMillis(2);
+    private static final long THIRD_SCAN_TIME_MILLIS = TimeUnit.SECONDS.toMillis(5);
+    protected FragmentStackManager fragmentStackManager;
+    String requestedFileUrl;
+    String queriesString = "";
+    ActionBar toolbar;
     private List<String> mGroupIdQueue;
     private PhysicalWebCollection mPwCollection = null;
     private TextView mScanningAnimationTextView;
@@ -108,13 +108,8 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     private SwipeRefreshWidget mSwipeRefreshWidget;
     private boolean mDebugViewEnabled = false;
     private boolean mSecondScanComplete;
-
-
-    protected FragmentStackManager fragmentStackManager;
-    String requestedFileUrl;
-    String queriesString = "";
-
-    ActionBar toolbar;
+    private boolean mFirstTime;
+    private DiscoveryServiceConnection mDiscoveryServiceConnection;
 
 
     // The display of gathered urls happens as follows
@@ -123,7 +118,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
     // 2. Sort and show all new urls beneath the first set (mSecondScanTimeout)
     // 3. Show each new url at bottom of list as it comes in
     // 4. Stop scanning (mThirdScanTimeout)
-
     // Run when the FIRST_SCAN_MILLIS has elapsed.
     private Runnable mFirstScanTimeout = new Runnable() {
         @Override
@@ -131,7 +125,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             Log.d(TAG, "running first scan timeout");
             if (!mGroupIdQueue.isEmpty()) {
                 emptyGroupIdQueue();
-                showListView();
+                mSwipeRefreshWidget.setRefreshing(false);
             }
         }
     };
@@ -142,8 +136,9 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         public void run() {
             Log.d(TAG, "running second scan timeout");
             emptyGroupIdQueue();
-            showListView();
             mSecondScanComplete = true;
+            mSwipeRefreshWidget.setRefreshing(false);
+            mScanningAnimationTextView.setAlpha(0f);
         }
     };
 
@@ -164,66 +159,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                     return true;
                 }
             };
-
-
-    /**
-     * The connection to the service that discovers urls.
-     */
-    private class DiscoveryServiceConnection implements ServiceConnection {
-        private UrlDeviceDiscoveryService mDiscoveryService;
-        private boolean mRequestCachedUrlDevices;
-
-        @Override
-        public synchronized void onServiceConnected(ComponentName className, IBinder service) {
-            // Get the service
-            UrlDeviceDiscoveryService.LocalBinder localBinder =
-                    (UrlDeviceDiscoveryService.LocalBinder) service;
-            mDiscoveryService = localBinder.getServiceInstance();
-
-            // Start the scanning display
-            mDiscoveryService.addCallback(NearbyBeaconsFragment.this);
-            if (!mRequestCachedUrlDevices) {
-                mDiscoveryService.restartScan();
-            }
-            mPwCollection = mDiscoveryService.getPwCollection();
-            startScanningDisplay(mDiscoveryService.getScanStartTime(), mDiscoveryService.hasResults());
-        }
-
-        @Override
-        public synchronized void onServiceDisconnected(ComponentName className) {
-            // onServiceDisconnected gets called when the connection is unintentionally disconnected,
-            // which should never happen for us since this is a local service
-            mDiscoveryService = null;
-        }
-
-        public synchronized void connect(boolean requestCachedUrlDevices) {
-            if (mDiscoveryService != null) {
-                return;
-            }
-
-            mRequestCachedUrlDevices = requestCachedUrlDevices;
-            Intent intent = new Intent(getActivity(), UrlDeviceDiscoveryService.class);
-            getActivity().startService(intent);
-            getActivity().bindService(intent, this, Context.BIND_AUTO_CREATE);
-        }
-
-        public synchronized void disconnect() {
-            if (mDiscoveryService == null) {
-                return;
-            }
-
-            mDiscoveryService.removeCallback(NearbyBeaconsFragment.this);
-            mDiscoveryService = null;
-            getActivity().unbindService(this);
-            stopScanningDisplay();
-        }
-    }
-
-    private DiscoveryServiceConnection mDiscoveryServiceConnection = new DiscoveryServiceConnection();
-
-    public static NearbyBeaconsFragment newInstance() {
-        return new NearbyBeaconsFragment();
-    }
 
     private void initialize(View rootView) {
         setHasOptionsMenu(true);
@@ -246,11 +181,10 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 (AnimationDrawable) mScanningAnimationTextView.getCompoundDrawables()[1];
         ListView listView = (ListView) rootView.findViewById(android.R.id.list);
         listView.setOnItemLongClickListener(mAdapterViewItemLongClickListener);
-
+        mDiscoveryServiceConnection = new DiscoveryServiceConnection();
         toolbar = ((AppCompatActivity) getActivity()).getSupportActionBar();
         toolbar.setDisplayHomeAsUpEnabled(true);
     }
-
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -269,7 +203,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 return super.onOptionsItemSelected(item);
         }
     }
-
 
     private void showAbout() {
         final Dialog dialog = new Dialog(getActivity());
@@ -327,8 +260,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         });
 
         builder.show();
-
-
     }
 
     @Override
@@ -343,15 +274,16 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
     public View onCreateView(LayoutInflater layoutInflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        mFirstTime = true;
         View rootView = layoutInflater.inflate(R.layout.fragment_nearby_beacons, container, false);
-      //  initialize(rootView);
+        initialize(rootView);
         return rootView;
     }
 
     @Override
     public void onViewCreated(View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        initialize(view);
+        //initialize(view);
     }
 
     @Override
@@ -359,15 +291,10 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         super.onCreateOptionsMenu(menu, inflater);
     }
 
-
-    @Override
-    public void onStart() {
-        super.onStart();
-    }
-
     @Override
     public void onStop() {
         super.onStop();
+        mDiscoveryServiceConnection.disconnect();
         stopScanningDisplay();
     }
 
@@ -377,8 +304,18 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
         ((AppCompatActivity) getActivity()).getSupportActionBar().setTitle(R.string.title_nearby_beacons);
         ((AppCompatActivity) getActivity()).getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getListView().setVisibility(View.INVISIBLE);
-        mDiscoveryServiceConnection.connect(true);
+        // getListView().setVisibility(View.INVISIBLE);
+        // mDiscoveryServiceConnection.connect(true);
+        if (mFirstTime && !PermissionCheck.getInstance().isCheckingPermissions()) {
+            restartScan();
+        }
+        mFirstTime = false;
+    }
+
+    public void restartScan() {
+        if (mDiscoveryServiceConnection != null) {
+            mDiscoveryServiceConnection.connect(true);
+        }
     }
 
     @Override
@@ -386,7 +323,6 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         super.onPause();
         mDiscoveryServiceConnection.disconnect();
     }
-
 
     @Override
     public void onPrepareOptionsMenu(Menu menu) {
@@ -410,21 +346,30 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
     @Override
     public void onUrlDeviceDiscoveryUpdate() {
-        for (PwPair pwPair : mPwCollection.getGroupedPwPairsSortedByRank()) {
-            String groupId = Utils.getGroupId(pwPair.getPwsResult());
-            Log.d(TAG, "groupid to add " + groupId);
-            if (mNearbyDeviceAdapter.containsGroupId(groupId)) {
-                mNearbyDeviceAdapter.updateItem(pwPair);
-            } else if (!mGroupIdQueue.contains(groupId)) {
-                mGroupIdQueue.add(groupId);
-                if (mSecondScanComplete) {
-                    // If we've already waited for the second scan timeout, go ahead and put the item in the
-                    // listview.
-                    emptyGroupIdQueue();
+        // Since this callback is given on a background thread and we want
+        // to update the list adapter (which can only be done on the UI thread)
+        // we have to interact with the adapter on the UI thread.
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                for (PwPair pwPair : mPwCollection.getGroupedPwPairsSortedByRank(
+                        Utils.newDistanceComparator())) {
+                    String groupId = Utils.getGroupId(pwPair.getPwsResult());
+                    Log.d(TAG, "groupid to add " + groupId);
+                    if (mNearbyDeviceAdapter.containsGroupId(groupId)) {
+                        mNearbyDeviceAdapter.updateItem(pwPair);
+                    } else if (!mGroupIdQueue.contains(groupId)) {
+                        mGroupIdQueue.add(groupId);
+                        if (mSecondScanComplete) {
+                            // If we've already waited for the second scan timeout,
+                            // go ahead and put the item in the listview.
+                            emptyGroupIdQueue();
+                        }
+                    }
                 }
+                mNearbyDeviceAdapter.notifyDataSetChanged();
             }
-        }
-        safeNotifyChange();
+        });
     }
 
     private void stopScanningDisplay() {
@@ -445,20 +390,18 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
         long elapsedMillis = new Date().getTime() - scanStartTime;
         if (elapsedMillis < FIRST_SCAN_TIME_MILLIS
                 || (elapsedMillis < SECOND_SCAN_TIME_MILLIS && !hasResults)) {
+            mNearbyDeviceAdapter.clear();
             mScanningAnimationTextView.setAlpha(1f);
             mScanningAnimationDrawable.start();
-            getListView().setVisibility(View.INVISIBLE);
         } else {
-            showListView();
+            mSwipeRefreshWidget.setRefreshing(false);
         }
 
         // Schedule the timeouts
-        // We delay at least 50 milliseconds to give the discovery service a chance to
-        // give us cached results.
         mSecondScanComplete = false;
-        long firstDelay = Math.max(FIRST_SCAN_TIME_MILLIS - elapsedMillis, 50);
-        long secondDelay = Math.max(SECOND_SCAN_TIME_MILLIS - elapsedMillis, 50);
-        long thirdDelay = Math.max(THIRD_SCAN_TIME_MILLIS - elapsedMillis, 50);
+        long firstDelay = Math.max(FIRST_SCAN_TIME_MILLIS - elapsedMillis, 0);
+        long secondDelay = Math.max(SECOND_SCAN_TIME_MILLIS - elapsedMillis, 0);
+        long thirdDelay = Math.max(THIRD_SCAN_TIME_MILLIS - elapsedMillis, 0);
         mHandler.postDelayed(mFirstScanTimeout, firstDelay);
         mHandler.postDelayed(mSecondScanTimeout, secondDelay);
         mHandler.postDelayed(mThirdScanTimeout, thirdDelay);
@@ -482,53 +425,18 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             Log.d(TAG, "groupid " + groupId);
             pwPairs.add(Utils.getTopRankedPwPairByGroupId(mPwCollection, groupId));
         }
-        Collections.sort(pwPairs, Collections.reverseOrder());
+
+        Collections.sort(pwPairs, Utils.newDistanceComparator());
         for (PwPair pwPair : pwPairs) {
             mNearbyDeviceAdapter.addItem(pwPair);
         }
         mGroupIdQueue.clear();
-        safeNotifyChange();
-    }
-
-    private void showListView() {
-        if(getListView()!=null) {
-            if (getListView().getVisibility() == View.VISIBLE) {
-                return;
-            }
-
-            mSwipeRefreshWidget.setRefreshing(false);
-            getListView().setAlpha(0f);
-            getListView().setVisibility(View.VISIBLE);
-            safeNotifyChange();
-            ObjectAnimator alphaAnimation = ObjectAnimator.ofFloat(getListView(), "alpha", 0f, 1f);
-            alphaAnimation.setDuration(400);
-            alphaAnimation.setInterpolator(new DecelerateInterpolator());
-            alphaAnimation.addListener(new AnimatorListener() {
-                @Override
-                public void onAnimationStart(Animator animation) {
-                }
-
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    mScanningAnimationTextView.setAlpha(0f);
-                    mScanningAnimationDrawable.stop();
-                }
-
-                @Override
-                public void onAnimationRepeat(Animator animation) {
-                }
-
-                @Override
-                public void onAnimationCancel(Animator animation) {
-                }
-            });
-            alphaAnimation.start();
-        }
+        mNearbyDeviceAdapter.notifyDataSetChanged();
     }
 
     /**
      * Notify the view that the underlying data has been changed.
-     * <p/>
+     * <p>
      * We need to make sure the view is visible because if it's not,
      * the view will become visible when we notify it.
      */
@@ -540,6 +448,59 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                     mNearbyDeviceAdapter.notifyDataSetChanged();
                 }
             });
+        }
+    }
+
+    /**
+     * The connection to the service that discovers urls.
+     */
+    private class DiscoveryServiceConnection implements ServiceConnection {
+        private UrlDeviceDiscoveryService mDiscoveryService;
+        private boolean mRequestCachedUrlDevices;
+
+        @Override
+        public synchronized void onServiceConnected(ComponentName className, IBinder service) {
+            // Get the service
+            UrlDeviceDiscoveryService.LocalBinder localBinder =
+                    (UrlDeviceDiscoveryService.LocalBinder) service;
+            mDiscoveryService = localBinder.getServiceInstance();
+
+            // Start the scanning display
+            mDiscoveryService.addCallback(NearbyBeaconsFragment.this);
+            if (!mRequestCachedUrlDevices) {
+                mDiscoveryService.restartScan();
+            }
+            mPwCollection = mDiscoveryService.getPwCollection();
+            startScanningDisplay(mDiscoveryService.getScanStartTime(), mDiscoveryService.hasResults());
+        }
+
+        @Override
+        public synchronized void onServiceDisconnected(ComponentName className) {
+            // onServiceDisconnected gets called when the connection is unintentionally disconnected,
+            // which should never happen for us since this is a local service
+            mDiscoveryService = null;
+        }
+
+        public synchronized void connect(boolean requestCachedUrlDevices) {
+            if (mDiscoveryService != null) {
+                return;
+            }
+
+            mRequestCachedUrlDevices = requestCachedUrlDevices;
+            Intent intent = new Intent(getActivity(), UrlDeviceDiscoveryService.class);
+            getActivity().startService(intent);
+            getActivity().bindService(intent, this, Context.BIND_AUTO_CREATE);
+        }
+
+        public synchronized void disconnect() {
+            if (mDiscoveryService == null) {
+                return;
+            }
+
+            mDiscoveryService.removeCallback(NearbyBeaconsFragment.this);
+            mDiscoveryService = null;
+            getActivity().unbindService(this);
+            stopScanningDisplay();
         }
     }
 
@@ -666,7 +627,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
             }
 
             (view.findViewById(R.id.icon)).setVisibility(View.VISIBLE);
-            mPwCollection.setPwsEndpoint(Utils.PROD_ENDPOINT);
+            Utils.setPwsEndpoint(getActivity(), mPwCollection);
             UrlShortenerClient.getInstance(getActivity()).setEndpoint(Utils.PROD_ENDPOINT);
 
             return view;
@@ -804,8 +765,15 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
                 dialog.setMessage(getResources().getString(R.string.importingContentsVisit));
                 dialog.setIndeterminate(false);
                 dialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);
-                dialog.setCancelable(true);
-                dialog.setCanceledOnTouchOutside(false);
+                dialog.setCancelable(false);
+                dialog.setButton(DialogInterface.BUTTON_NEGATIVE, getResources().getString(R.string.cancelTour), new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        dialog.dismiss();
+                        cancel(true);
+                    }
+                });
+                dialog.setCanceledOnTouchOutside(true);
                 dialog.setOnCancelListener(new DialogInterface.OnCancelListener() {
                     @Override
                     public void onCancel(DialogInterface dialog) {
@@ -840,6 +808,7 @@ public class NearbyBeaconsFragment extends ListFragment implements UrlDeviceDisc
 
                 CustomXmlPullParser customXmlPullParser = new CustomXmlPullParser();
                 List<POI> poisList = customXmlPullParser.parse(in, getActivity());
+
 
                 success = LGutils.visitPOIS(poisList, getActivity());
 

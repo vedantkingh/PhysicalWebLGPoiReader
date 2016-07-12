@@ -23,6 +23,8 @@
     <string name="url_charset_error">Non-ASCII characters unsupported in URL. Please use a shortener.</string>
     <string name="error_bluetooth_support">Device does not support Bluetooth</string>
     <string name="importStr">Import Pois</string>
+    <string name="pws_endpoint_setting_key">pws_endpoint</string>
+    <string name="custom_pws_url_key">custom_pws_url</string>
     <string name="notification_view_more_beacons">View more beacons</string>
 
 
@@ -57,6 +59,7 @@
     <string name="connection_failure">Error in connection with Liquid Galaxy. Please, check credentials and try again</string>
     <string name="rollback">Restore Initial POIS</string>
     <string name="restoringPOIS">Restoring Initial POIs</string>
+    <string name="cancelTour">Cancel Tour</string>
 
 
 </resources>

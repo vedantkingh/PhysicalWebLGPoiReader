@@ -19,15 +19,16 @@ package gsoc.google.com.physicalweblgpoireader.PW;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
-
-import gsoc.google.com.physicalweblgpoireader.R;
 
 /**
  * This receiver starts the UriBeaconDiscoveryService.
  */
 public class AutostartPwoDiscoveryServiceReceiver extends BroadcastReceiver {
   public void onReceive(Context context, Intent intent) {
+    // Make sure we don't get spoofed with the wrong action.
+    if (!intent.getAction().equals(Intent.ACTION_BOOT_COMPLETED)) {
+      return;
+    }
 
     Intent newIntent = new Intent(context, ScreenListenerService.class);
     context.startService(newIntent);

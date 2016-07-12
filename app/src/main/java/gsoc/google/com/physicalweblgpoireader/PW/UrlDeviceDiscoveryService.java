@@ -37,7 +37,6 @@ import android.widget.RemoteViews;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -120,103 +119,87 @@ public class UrlDeviceDiscoveryService extends Service implements UrlDeviceDisco
       }
     }
   };
-
-  /**
-   * Binder class for getting connections to the service.
-   */
-  public class LocalBinder extends Binder {
-    public UrlDeviceDiscoveryService getServiceInstance() {
-      return UrlDeviceDiscoveryService.this;
-    }
-  }
   private IBinder mBinder = new LocalBinder();
 
-  /**
-   * Callback for subscribers to this service.
-   */
-  public interface UrlDeviceDiscoveryListener {
-    public void onUrlDeviceDiscoveryUpdate();
-  }
-
-  public UrlDeviceDiscoveryService() {
-  }
-
-  private void initialize() {
-    mNotificationManager = NotificationManagerCompat.from(this);
-    mUrlDeviceDiscoverers = new ArrayList<>();
-
-    // disable mDNS PWO discovery for pre-M devices
-    if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP) {
-      mUrlDeviceDiscoverers.add(new MdnsUrlDeviceDiscoverer(this));
+    public UrlDeviceDiscoveryService() {
     }
-    mUrlDeviceDiscoverers.add(new SsdpUrlDeviceDiscoverer(this));
-    mUrlDeviceDiscoverers.add(new BleUrlDeviceDiscoverer(this));
+
+    private void initialize() {
+        mNotificationManager = NotificationManagerCompat.from(this);
+        mUrlDeviceDiscoverers = new ArrayList<>();
+
+        // disable mDNS PWO discovery for pre-M devices
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.LOLLIPOP) {
+            mUrlDeviceDiscoverers.add(new MdnsUrlDeviceDiscoverer(this));
+        }
+        mUrlDeviceDiscoverers.add(new SsdpUrlDeviceDiscoverer(this));
+        mUrlDeviceDiscoverers.add(new BleUrlDeviceDiscoverer(this));
+        for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
+            urlDeviceDiscoverer.setCallback(this);
+        }
+        mUrlDeviceDiscoveryListeners = new ArrayList<>();
+        mHandler = new Handler();
+        mPwCollection = new PhysicalWebCollection();
+        mCanUpdateNotifications = false;
+  }
+
+    private void restoreCache() {
+        // Make sure we are trying to load the right version of the cache
+        String preferencesKey = getString(R.string.discovery_service_prefs_key);
+        SharedPreferences prefs = getSharedPreferences(preferencesKey, Context.MODE_PRIVATE);
+        int prefsVersion = prefs.getInt(PREFS_VERSION_KEY, 0);
+        long now = new Date().getTime();
+        if (prefsVersion != PREFS_VERSION) {
+            mScanStartTime = now;
+            return;
+        }
+
+        // Don't load the cache if it's stale
+        mScanStartTime = prefs.getLong(SCAN_START_TIME_KEY, 0);
+        if (now - mScanStartTime >= SCAN_STALE_TIME_MILLIS) {
+            mScanStartTime = now;
+            return;
+        }
+
+        // Restore the cached metadata
+        try {
+            JSONObject serializedCollection = new JSONObject(prefs.getString(PW_COLLECTION_KEY, null));
+            mPwCollection = PhysicalWebCollection.jsonDeserialize(serializedCollection);
+        } catch (JSONException e) {
+            Log.e(TAG, "Could not restore collection cache", e);
+        } catch (PhysicalWebCollectionException e) {
+            Log.e(TAG, "Could not restore collection cache", e);
+    }
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        initialize();
+        restoreCache();
+
+        mNotificationManager.cancelAll();
+        mHandler.postDelayed(mFirstScanTimeout, FIRST_SCAN_TIME_MILLIS);
+        mHandler.postDelayed(mSecondScanTimeout, SECOND_SCAN_TIME_MILLIS);
     for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
-      urlDeviceDiscoverer.setCallback(this);
-    }
-    mUrlDeviceDiscoveryListeners = new ArrayList<>();
-    mHandler = new Handler();
-    mPwCollection = new PhysicalWebCollection();
-    mCanUpdateNotifications = false;
-  }
-
-  private void restoreCache() {
-    // Make sure we are trying to load the right version of the cache
-    String preferencesKey = getString(R.string.discovery_service_prefs_key);
-    SharedPreferences prefs = getSharedPreferences(preferencesKey, Context.MODE_PRIVATE);
-    int prefsVersion = prefs.getInt(PREFS_VERSION_KEY, 0);
-    long now = new Date().getTime();
-    if (prefsVersion != PREFS_VERSION) {
-      mScanStartTime = now;
-      return;
-    }
-
-    // Don't load the cache if it's stale
-    mScanStartTime = prefs.getLong(SCAN_START_TIME_KEY, 0);
-    if (now - mScanStartTime >= SCAN_STALE_TIME_MILLIS) {
-      mScanStartTime = now;
-      return;
-    }
-
-    // Restore the cached metadata
-    try {
-      JSONObject serializedCollection = new JSONObject(prefs.getString(PW_COLLECTION_KEY, null));
-      mPwCollection = PhysicalWebCollection.jsonDeserialize(serializedCollection);
-    } catch (JSONException e) {
-      Log.e(TAG, "Could not restore collection cache", e);
-    } catch (PhysicalWebCollectionException e) {
-      Log.e(TAG, "Could not restore collection cache", e);
+        urlDeviceDiscoverer.startScan();
     }
   }
 
-  @Override
-  public void onCreate() {
-    super.onCreate();
-    initialize();
-    restoreCache();
-
-    mNotificationManager.cancelAll();
-    mHandler.postDelayed(mFirstScanTimeout, FIRST_SCAN_TIME_MILLIS);
-    mHandler.postDelayed(mSecondScanTimeout, SECOND_SCAN_TIME_MILLIS);
-    for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
-      urlDeviceDiscoverer.startScan();
-    }
-  }
-
-  @Override
-  public IBinder onBind(Intent intent) {
-    mIsBound = true;
-    return mBinder;
+    @Override
+    public IBinder onBind(Intent intent) {
+        mIsBound = true;
+        return mBinder;
   }
 
   @Override
   public boolean onUnbind(Intent intent) {
-    mIsBound = false;
-    if (mSecondScanComplete) {
-      stopSelf();
+      mIsBound = false;
+      if (mSecondScanComplete) {
+          stopSelf();
     }
-    // true ensures onRebind is called on succcessive binds
-    return true;
+      // true ensures onRebind is called on succcessive binds
+      return true;
   }
 
   @Override
@@ -224,262 +207,274 @@ public class UrlDeviceDiscoveryService extends Service implements UrlDeviceDisco
     mIsBound = true;
   }
 
-  private void saveCache() throws JSONException {
-    // Write the PW Collection
-    String preferencesKey = getString(R.string.discovery_service_prefs_key);
-    SharedPreferences prefs = getSharedPreferences(preferencesKey, Context.MODE_PRIVATE);
-    SharedPreferences.Editor editor = prefs.edit();
-    editor.putInt(PREFS_VERSION_KEY, PREFS_VERSION);
-    editor.putLong(SCAN_START_TIME_KEY, mScanStartTime);
-    editor.putString(PW_COLLECTION_KEY, mPwCollection.jsonSerialize().toString());
-    editor.apply();
+    private void saveCache() throws JSONException {
+        // Write the PW Collection
+        String preferencesKey = getString(R.string.discovery_service_prefs_key);
+        SharedPreferences prefs = getSharedPreferences(preferencesKey, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.putInt(PREFS_VERSION_KEY, PREFS_VERSION);
+        editor.putLong(SCAN_START_TIME_KEY, mScanStartTime);
+        editor.putString(PW_COLLECTION_KEY, mPwCollection.jsonSerialize().toString());
+        editor.apply();
   }
 
   @Override
   public void onDestroy() {
-    Log.d(TAG, "onDestroy:  service exiting");
+      Log.d(TAG, "onDestroy:  service exiting");
 
-    // Stop the scanners
-    mHandler.removeCallbacks(mFirstScanTimeout);
-    mHandler.removeCallbacks(mSecondScanTimeout);
-    for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
-      urlDeviceDiscoverer.stopScan();
-    }
+      // Stop the scanners
+      mHandler.removeCallbacks(mFirstScanTimeout);
+      mHandler.removeCallbacks(mSecondScanTimeout);
+      for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
+          urlDeviceDiscoverer.stopScan();
+      }
 
-    try {
-      saveCache();
-    } catch (JSONException e) {
-      e.printStackTrace();
-    }
-    super.onDestroy();
+      try {
+          saveCache();
+      } catch (JSONException e) {
+          e.printStackTrace();
+      }
+      super.onDestroy();
   }
 
   @Override
   public void onUrlDeviceDiscovered(UrlDevice urlDevice) {
-    mPwCollection.addUrlDevice(urlDevice);
-    mPwCollection.fetchPwsResults(new PwsResultCallback() {
-      long mPwsTripTimeMillis = 0;
+      mPwCollection.addUrlDevice(urlDevice);
+      mPwCollection.fetchPwsResults(new PwsResultCallback() {
+          long mPwsTripTimeMillis = 0;
 
-      @Override
-      public void onPwsResult(PwsResult pwsResult) {
-        PwsResult replacement = null;
-        try {
-          replacement = new Utils.PwsResultBuilder(pwsResult)
-              .setPwsTripTimeMillis(pwsResult, mPwsTripTimeMillis)
-              .build();
-        } catch (JSONException e) {
-          e.printStackTrace();
+          @Override
+          public void onPwsResult(PwsResult pwsResult) {
+              PwsResult replacement = null;
+              try {
+                  replacement = new Utils.PwsResultBuilder(pwsResult)
+                          .setPwsTripTimeMillis(pwsResult, mPwsTripTimeMillis)
+                          .build();
+              } catch (JSONException e) {
+                  e.printStackTrace();
+              }
+              mPwCollection.addMetadata(replacement);
+              triggerCallback();
+              updateNotifications();
+          }
+
+          @Override
+          public void onPwsResultAbsent(String url) {
+              triggerCallback();
+          }
+
+          @Override
+          public void onPwsResultError(Collection<String> urls, int httpResponseCode, Exception e) {
+              Log.d(TAG, "PwsResultError: " + httpResponseCode + " ", e);
+              triggerCallback();
+          }
+
+          @Override
+          public void onResponseReceived(long durationMillis) {
+              mPwsTripTimeMillis = durationMillis;
+          }
+      }, new PwsResultIconCallback() {
+          @Override
+          public void onIcon(byte[] icon) {
+              triggerCallback();
+          }
+
+          @Override
+          public void onError(int httpResponseCode, Exception e) {
+              Log.d(TAG, "PwsResultError: " + httpResponseCode + " ", e);
+              triggerCallback();
+          }
+      });
+      triggerCallback();
+  }
+
+    private void triggerCallback() {
+        for (UrlDeviceDiscoveryListener urlDeviceDiscoveryListener : mUrlDeviceDiscoveryListeners) {
+            urlDeviceDiscoveryListener.onUrlDeviceDiscoveryUpdate();
+    }
+    }
+
+    /**
+     * Create a new set of notifications or update those existing.
+     */
+    private void updateNotifications() {
+        if (!mCanUpdateNotifications) {
+            return;
         }
-        mPwCollection.addMetadata(replacement);
-        triggerCallback();
-        updateNotifications();
-      }
 
-      @Override
-      public void onPwsResultAbsent(String url) {
-        triggerCallback();
-      }
+        List<PwPair> pwPairs = mPwCollection.getGroupedPwPairsSortedByRank(Utils.newDistanceComparator());
 
-      @Override
-      public void onPwsResultError(Collection<String> urls, int httpResponseCode, Exception e) {
-        Log.d(TAG, "PwsResultError: " + httpResponseCode + " ", e);
-        triggerCallback();
-      }
+        // If no beacons have been found
+        if (pwPairs.size() == 0) {
+            // Remove all existing notifications
+            mNotificationManager.cancelAll();
+        } else if (pwPairs.size() == 1) {
+            updateNearbyBeaconNotification(true, pwPairs.get(0), NEAREST_BEACON_NOTIFICATION_ID);
+        } else {
+            // Create a summary notification for both beacon notifications.
+            // Do this first so that we don't first show the individual notifications
+            updateSummaryNotification(pwPairs);
+            // Create or update a notification for second beacon
+            updateNearbyBeaconNotification(false, pwPairs.get(1),
+                    SECOND_NEAREST_BEACON_NOTIFICATION_ID);
+            // Create or update a notification for first beacon. Needs to be added last to show up top
+            updateNearbyBeaconNotification(false, pwPairs.get(0),
+                    NEAREST_BEACON_NOTIFICATION_ID);
 
-      @Override
-      public void onResponseReceived(long durationMillis) {
-        mPwsTripTimeMillis = durationMillis;
-      }
-    }, new PwsResultIconCallback() {
-      @Override
-      public void onIcon(byte[] icon) {
-        triggerCallback();
-      }
-
-      @Override
-      public void onError(int httpResponseCode, Exception e) {
-        Log.d(TAG, "PwsResultError: " + httpResponseCode + " ", e);
-        triggerCallback();
-      }
-    });
-    triggerCallback();
-  }
-
-  private void triggerCallback() {
-    for (UrlDeviceDiscoveryListener urlDeviceDiscoveryListener : mUrlDeviceDiscoveryListeners) {
-      urlDeviceDiscoveryListener.onUrlDeviceDiscoveryUpdate();
-    }
-  }
-
-  /**
-   * Create a new set of notifications or update those existing.
-   */
-  private void updateNotifications() {
-    if (!mCanUpdateNotifications) {
-      return;
+        }
     }
 
-    List<PwPair> pwPairs = mPwCollection.getGroupedPwPairsSortedByRank();
+    /**
+     * Create or update a notification with the given id for the beacon with the given address.
+     */
+    private void updateNearbyBeaconNotification(boolean single, PwPair pwPair, int notificationId) {
+        PwsResult pwsResult = pwPair.getPwsResult();
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
+        builder.setSmallIcon(R.drawable.ic_notification)
+                .setLargeIcon(Utils.getBitmapIcon(mPwCollection, pwsResult))
+                .setContentTitle(pwsResult.getTitle())
+                .setContentText(pwsResult.getDescription())
+                .setPriority(NOTIFICATION_PRIORITY)
+                .setContentIntent(Utils.createNavigateToUrlPendingIntent(pwsResult, this));
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+                && Utils.isPublic(pwPair.getUrlDevice())) {
+            builder.setVisibility(NOTIFICATION_VISIBILITY);
+        }
+        // For some reason if there is only one notification and you call setGroup
+        // the notification doesn't show up on the N7 running kit kat
+        if (!single) {
+            builder = builder.setGroup(NOTIFICATION_GROUP_KEY);
+        }
+        Notification notification = builder.build();
 
-    // If no beacons have been found
-    if (pwPairs.size() == 0) {
-      // Remove all existing notifications
-      mNotificationManager.cancelAll();
-    } else if (pwPairs.size() == 1) {
-      updateNearbyBeaconNotification(true, pwPairs.get(0), NEAREST_BEACON_NOTIFICATION_ID);
-    } else {
-      // Create a summary notification for both beacon notifications.
-      // Do this first so that we don't first show the individual notifications
-      updateSummaryNotification(pwPairs);
-      // Create or update a notification for second beacon
-      updateNearbyBeaconNotification(false, pwPairs.get(1),
-                                     SECOND_NEAREST_BEACON_NOTIFICATION_ID);
-      // Create or update a notification for first beacon. Needs to be added last to show up top
-      updateNearbyBeaconNotification(false, pwPairs.get(0),
-                                     NEAREST_BEACON_NOTIFICATION_ID);
-
-    }
+        mNotificationManager.notify(notificationId, notification);
   }
 
-  /**
-   * Create or update a notification with the given id for the beacon with the given address.
-   */
-  private void updateNearbyBeaconNotification(boolean single, PwPair pwPair, int notificationId) {
-    PwsResult pwsResult = pwPair.getPwsResult();
-    NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
-    builder.setSmallIcon(R.drawable.ic_notification)
-        .setLargeIcon(Utils.getBitmapIcon(mPwCollection, pwsResult))
-        .setContentTitle(pwsResult.getTitle())
-        .setContentText(pwsResult.getDescription())
-        .setPriority(NOTIFICATION_PRIORITY)
-        .setContentIntent(Utils.createNavigateToUrlPendingIntent(pwsResult, this));
-    if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
-        && Utils.isPublic(pwPair.getUrlDevice())) {
-      builder.setVisibility(NOTIFICATION_VISIBILITY);
-    }
-    // For some reason if there is only one notification and you call setGroup
-    // the notification doesn't show up on the N7 running kit kat
-    if (!single) {
-      builder = builder.setGroup(NOTIFICATION_GROUP_KEY);
-    }
-    Notification notification = builder.build();
+    /**
+     * Create or update the a single notification that is a collapsed version
+     * of the top two beacon notifications.
+     */
+    private void updateSummaryNotification(List<PwPair> pwPairs) {
+        int numNearbyBeacons = pwPairs.size();
+        String contentTitle = String.valueOf(numNearbyBeacons);
+        Resources resources = getResources();
+        contentTitle += " " + resources.getQuantityString(R.plurals.numFoundBeacons, numNearbyBeacons,
+                numNearbyBeacons);
+        String contentText = getString(R.string.summary_notification_pull_down);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
+        builder.setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(contentTitle)
+                .setContentText(contentText)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setGroup(NOTIFICATION_GROUP_KEY)
+                .setGroupSummary(true)
+                .setPriority(NOTIFICATION_PRIORITY)
+                .setContentIntent(createReturnToAppPendingIntent());
+        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder.setVisibility(NOTIFICATION_VISIBILITY);
+        }
+        Notification notification = builder.build();
 
-    mNotificationManager.notify(notificationId, notification);
+        // Create the big view for the notification (viewed by pulling down)
+        RemoteViews remoteViews = updateSummaryNotificationRemoteViews(pwPairs);
+        notification.bigContentView = remoteViews;
+
+        mNotificationManager.notify(SUMMARY_NOTIFICATION_ID, notification);
   }
 
-  /**
-   * Create or update the a single notification that is a collapsed version
-   * of the top two beacon notifications.
-   */
-  private void updateSummaryNotification(List<PwPair> pwPairs) {
-    int numNearbyBeacons = pwPairs.size();
-    String contentTitle = String.valueOf(numNearbyBeacons);
-    Resources resources = getResources();
-    contentTitle += " " + resources.getQuantityString(R.plurals.numFoundBeacons, numNearbyBeacons,
-                                                      numNearbyBeacons);
-    String contentText = getString(R.string.summary_notification_pull_down);
-    NotificationCompat.Builder builder = new NotificationCompat.Builder(this);
-    builder.setSmallIcon(R.drawable.ic_notification)
-        .setContentTitle(contentTitle)
-        .setContentText(contentText)
-        .setSmallIcon(R.drawable.ic_notification)
-        .setGroup(NOTIFICATION_GROUP_KEY)
-        .setGroupSummary(true)
-        .setPriority(NOTIFICATION_PRIORITY)
-        .setContentIntent(createReturnToAppPendingIntent());
-    if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      builder.setVisibility(NOTIFICATION_VISIBILITY);
+    /**
+     * Create the big view for the summary notification.
+     */
+    private RemoteViews updateSummaryNotificationRemoteViews(List<PwPair> pwPairs) {
+        RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.notification_big_view);
+
+        // Fill in the data for the top two beacon views
+        updateSummaryNotificationRemoteViewsFirstBeacon(pwPairs.get(0), remoteViews);
+        updateSummaryNotificationRemoteViewsSecondBeacon(pwPairs.get(1), remoteViews);
+
+        // Create a pending intent that will open the physical web app
+        // TODO(cco3): Use a clickListener on the VIEW MORE button to do this
+        PendingIntent pendingIntent = createReturnToAppPendingIntent();
+        remoteViews.setOnClickPendingIntent(R.id.otherBeaconsLayout, pendingIntent);
+
+        return remoteViews;
     }
-    Notification notification = builder.build();
 
-    // Create the big view for the notification (viewed by pulling down)
-    RemoteViews remoteViews = updateSummaryNotificationRemoteViews(pwPairs);
-    notification.bigContentView = remoteViews;
+    private void updateSummaryNotificationRemoteViewsFirstBeacon(PwPair pwPair,
+                                                                 RemoteViews remoteViews) {
+        PwsResult pwsResult = pwPair.getPwsResult();
+        remoteViews.setImageViewBitmap(
+                R.id.icon_firstBeacon, Utils.getBitmapIcon(mPwCollection, pwsResult));
+        remoteViews.setTextViewText(R.id.title_firstBeacon, pwsResult.getTitle());
+        remoteViews.setTextViewText(R.id.url_firstBeacon, pwsResult.getSiteUrl());
+        remoteViews.setTextViewText(R.id.description_firstBeacon, pwsResult.getDescription());
+        // Recolor notifications to have light text for non-Lollipop devices
+        if (!(android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)) {
+            remoteViews.setTextColor(R.id.title_firstBeacon, NON_LOLLIPOP_NOTIFICATION_TITLE_COLOR);
+            remoteViews.setTextColor(R.id.url_firstBeacon, NON_LOLLIPOP_NOTIFICATION_URL_COLOR);
+            remoteViews.setTextColor(R.id.description_firstBeacon,
+                    NON_LOLLIPOP_NOTIFICATION_SNIPPET_COLOR);
+        }
 
-    mNotificationManager.notify(SUMMARY_NOTIFICATION_ID, notification);
-  }
+        // Create an intent that will open the browser to the beacon's url
+        // if the user taps the notification
+        remoteViews.setOnClickPendingIntent(R.id.first_beacon_main_layout,
+                Utils.createNavigateToUrlPendingIntent(pwsResult, this));
+        remoteViews.setViewVisibility(R.id.firstBeaconLayout, View.VISIBLE);
+    }
 
-  /**
-   * Create the big view for the summary notification.
-   */
-  private RemoteViews updateSummaryNotificationRemoteViews(List<PwPair> pwPairs) {
-    RemoteViews remoteViews = new RemoteViews(getPackageName(), R.layout.notification_big_view);
-
-    // Fill in the data for the top two beacon views
-    updateSummaryNotificationRemoteViewsFirstBeacon(pwPairs.get(0), remoteViews);
-    updateSummaryNotificationRemoteViewsSecondBeacon(pwPairs.get(1), remoteViews);
-
-    // Create a pending intent that will open the physical web app
-    // TODO(cco3): Use a clickListener on the VIEW MORE button to do this
-    PendingIntent pendingIntent = createReturnToAppPendingIntent();
-    remoteViews.setOnClickPendingIntent(R.id.otherBeaconsLayout, pendingIntent);
-
-    return remoteViews;
-  }
-
-  private void updateSummaryNotificationRemoteViewsFirstBeacon(PwPair pwPair,
-                                                               RemoteViews remoteViews) {
+    private void updateSummaryNotificationRemoteViewsSecondBeacon(PwPair pwPair,
+                                                                  RemoteViews remoteViews) {
     PwsResult pwsResult = pwPair.getPwsResult();
     remoteViews.setImageViewBitmap(
-        R.id.icon_firstBeacon, Utils.getBitmapIcon(mPwCollection, pwsResult));
-    remoteViews.setTextViewText(R.id.title_firstBeacon, pwsResult.getTitle());
-    remoteViews.setTextViewText(R.id.url_firstBeacon, pwsResult.getSiteUrl());
-    remoteViews.setTextViewText(R.id.description_firstBeacon, pwsResult.getDescription());
+            R.id.icon_secondBeacon, Utils.getBitmapIcon(mPwCollection, pwsResult));
+        remoteViews.setTextViewText(R.id.title_secondBeacon, pwsResult.getTitle());
+        remoteViews.setTextViewText(R.id.url_secondBeacon, pwsResult.getSiteUrl());
+        remoteViews.setTextViewText(R.id.description_secondBeacon, pwsResult.getDescription());
     // Recolor notifications to have light text for non-Lollipop devices
     if (!(android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)) {
-      remoteViews.setTextColor(R.id.title_firstBeacon, NON_LOLLIPOP_NOTIFICATION_TITLE_COLOR);
-      remoteViews.setTextColor(R.id.url_firstBeacon, NON_LOLLIPOP_NOTIFICATION_URL_COLOR);
-      remoteViews.setTextColor(R.id.description_firstBeacon,
+        remoteViews.setTextColor(R.id.title_secondBeacon, NON_LOLLIPOP_NOTIFICATION_TITLE_COLOR);
+        remoteViews.setTextColor(R.id.url_secondBeacon, NON_LOLLIPOP_NOTIFICATION_URL_COLOR);
+        remoteViews.setTextColor(R.id.description_secondBeacon,
                                NON_LOLLIPOP_NOTIFICATION_SNIPPET_COLOR);
     }
 
     // Create an intent that will open the browser to the beacon's url
     // if the user taps the notification
-    remoteViews.setOnClickPendingIntent(R.id.first_beacon_main_layout,
+        remoteViews.setOnClickPendingIntent(R.id.second_beacon_main_layout,
         Utils.createNavigateToUrlPendingIntent(pwsResult, this));
-    remoteViews.setViewVisibility(R.id.firstBeaconLayout, View.VISIBLE);
-  }
-
-  private void updateSummaryNotificationRemoteViewsSecondBeacon(PwPair pwPair,
-                                                                RemoteViews remoteViews) {
-    PwsResult pwsResult = pwPair.getPwsResult();
-    remoteViews.setImageViewBitmap(
-        R.id.icon_secondBeacon, Utils.getBitmapIcon(mPwCollection, pwsResult));
-    remoteViews.setTextViewText(R.id.title_secondBeacon, pwsResult.getTitle());
-    remoteViews.setTextViewText(R.id.url_secondBeacon, pwsResult.getSiteUrl());
-    remoteViews.setTextViewText(R.id.description_secondBeacon, pwsResult.getDescription());
-    // Recolor notifications to have light text for non-Lollipop devices
-    if (!(android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)) {
-      remoteViews.setTextColor(R.id.title_secondBeacon, NON_LOLLIPOP_NOTIFICATION_TITLE_COLOR);
-      remoteViews.setTextColor(R.id.url_secondBeacon, NON_LOLLIPOP_NOTIFICATION_URL_COLOR);
-      remoteViews.setTextColor(R.id.description_secondBeacon,
-                               NON_LOLLIPOP_NOTIFICATION_SNIPPET_COLOR);
+        remoteViews.setViewVisibility(R.id.secondBeaconLayout, View.VISIBLE);
     }
 
-    // Create an intent that will open the browser to the beacon's url
-    // if the user taps the notification
-    remoteViews.setOnClickPendingIntent(R.id.second_beacon_main_layout,
-        Utils.createNavigateToUrlPendingIntent(pwsResult, this));
-    remoteViews.setViewVisibility(R.id.secondBeaconLayout, View.VISIBLE);
-  }
+    private PendingIntent createReturnToAppPendingIntent() {
+        Intent intent = new Intent(this, MainActivity.class);
+        int requestID = (int) System.currentTimeMillis();
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, requestID, intent, 0);
+        return pendingIntent;
+    }
 
-  private PendingIntent createReturnToAppPendingIntent() {
-    Intent intent = new Intent(this, MainActivity.class);
-    int requestID = (int) System.currentTimeMillis();
-    PendingIntent pendingIntent = PendingIntent.getActivity(this, requestID, intent, 0);
-    return pendingIntent;
-  }
+    public void addCallback(UrlDeviceDiscoveryListener urlDeviceDiscoveryListener) {
+        mUrlDeviceDiscoveryListeners.add(urlDeviceDiscoveryListener);
+    }
 
-  public void addCallback(UrlDeviceDiscoveryListener urlDeviceDiscoveryListener) {
-    mUrlDeviceDiscoveryListeners.add(urlDeviceDiscoveryListener);
-  }
+    public void removeCallback(UrlDeviceDiscoveryListener urlDeviceDiscoveryListener) {
+        mUrlDeviceDiscoveryListeners.remove(urlDeviceDiscoveryListener);
+    }
 
-  public void removeCallback(UrlDeviceDiscoveryListener urlDeviceDiscoveryListener) {
-    mUrlDeviceDiscoveryListeners.remove(urlDeviceDiscoveryListener);
-  }
+    public long getScanStartTime() {
+        return mScanStartTime;
+    }
 
-  public long getScanStartTime() {
-    return mScanStartTime;
+    private void startScan() {
+        for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
+            urlDeviceDiscoverer.startScan();
+        }
+    }
+
+    private void stopScan() {
+        for (UrlDeviceDiscoverer urlDeviceDiscoverer : mUrlDeviceDiscoverers) {
+            urlDeviceDiscoverer.stopScan();
+    }
   }
 
   public void restartScan() {
@@ -493,10 +488,35 @@ public class UrlDeviceDiscoveryService extends Service implements UrlDeviceDisco
   }
 
   public boolean hasResults() {
-    return !mPwCollection.getGroupedPwPairsSortedByRank().isEmpty();
+      return !mPwCollection.getPwPairs().isEmpty();
   }
 
-  public PhysicalWebCollection getPwCollection() {
-    return mPwCollection;
+    public PhysicalWebCollection getPwCollection() {
+        return mPwCollection;
+    }
+
+    public void clearCache() {
+        stopScan();
+        mScanStartTime = new Date().getTime();
+        // Utils.setPwsEndpoint(this, mPwCollection);
+        mPwCollection.clear();
+//    saveCache();
+        startScan();
+    }
+
+    /**
+     * Callback for subscribers to this service.
+     */
+    public interface UrlDeviceDiscoveryListener {
+        public void onUrlDeviceDiscoveryUpdate();
+    }
+
+    /**
+     * Binder class for getting connections to the service.
+     */
+    public class LocalBinder extends Binder {
+        public UrlDeviceDiscoveryService getServiceInstance() {
+            return UrlDeviceDiscoveryService.this;
+    }
   }
 }

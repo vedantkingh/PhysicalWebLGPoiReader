@@ -15,15 +15,19 @@
  */
 package gsoc.google.com.physicalweblgpoireader.PW.collection;
 
+import org.apache.commons.codec.binary.Base64;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,12 +40,14 @@ public class PhysicalWebCollection {
   private static final String SCHEMA_VERSION_KEY = "schema";
   private static final String DEVICES_KEY = "devices";
   private static final String METADATA_KEY = "metadata";
+  private static final String ICON_MAP_KEY = "iconmap";
   private PwsClient mPwsClient;
   private Map<String, UrlDevice> mDeviceIdToUrlDeviceMap;
   private Map<String, PwsResult> mBroadcastUrlToPwsResultMap;
   private Map<String, byte[]> mIconUrlToIconMap;
   private Set<String> mPendingBroadcastUrls;
   private Set<String> mPendingIconUrls;
+  private Set<String> mFailedResolveUrls;
 
   /**
    * Construct a PhysicalWebCollection.
@@ -53,14 +59,122 @@ public class PhysicalWebCollection {
     mIconUrlToIconMap = new HashMap<>();
     mPendingBroadcastUrls = new HashSet<>();
     mPendingIconUrls = new HashSet<>();
+    mFailedResolveUrls = new HashSet<>();
+  }
+
+  /**
+   * Populate this data structure with UrlDevices represented by a given JSON object.
+   *
+   * @param jsonObject a serialized PhysicalWebCollection.
+   * @return The PhysicalWebCollection represented by the serialized object.
+   * @throws PhysicalWebCollectionException on invalid or unrecognized input
+   */
+  public static PhysicalWebCollection jsonDeserialize(JSONObject jsonObject)
+          throws PhysicalWebCollectionException, JSONException {
+    // Check the schema version
+    int schemaVersion = jsonObject.getInt(SCHEMA_VERSION_KEY);
+    if (schemaVersion > SCHEMA_VERSION) {
+      throw new PhysicalWebCollectionException(
+              "Cannot handle schema version " + schemaVersion + ".  "
+                      + "This library only knows of schema version " + SCHEMA_VERSION);
+    }
+    PhysicalWebCollection collection = new PhysicalWebCollection();
+
+    // Deserialize the UrlDevices
+    JSONArray urlDevices = jsonObject.getJSONArray(DEVICES_KEY);
+    for (int i = 0; i < urlDevices.length(); i++) {
+      JSONObject urlDeviceJson = urlDevices.getJSONObject(i);
+      UrlDevice urlDevice = UrlDevice.jsonDeserialize(urlDeviceJson);
+      collection.addUrlDevice(urlDevice);
+    }
+
+    // Deserialize the URL metadata
+    JSONArray metadata = jsonObject.getJSONArray(METADATA_KEY);
+    for (int i = 0; i < metadata.length(); i++) {
+      JSONObject pwsResultJson = metadata.getJSONObject(i);
+      PwsResult pwsResult = PwsResult.jsonDeserialize(pwsResultJson);
+      collection.addMetadata(pwsResult);
+    }
+
+    JSONObject iconMap = jsonObject.getJSONObject(ICON_MAP_KEY);
+    for (Iterator<String> iconUrls = iconMap.keys(); iconUrls.hasNext(); ) {
+      String iconUrl = iconUrls.next();
+      collection.addIcon(iconUrl, Base64.decodeBase64(
+              iconMap.getString(iconUrl).getBytes(Charset.forName("UTF-8"))));
+    }
+    return collection;
+  }
+
+  /**
+   * If a site URL appears multiple times in the pairs list, keep only the first example.
+   *
+   * @param allPwPairs input PwPairs list.
+   * @return filtered PwPairs list with all duplicated site URLs removed.
+   */
+  private static List<PwPair> removeDuplicateSiteUrls(List<PwPair> allPwPairs) {
+    List<PwPair> filteredPwPairs = new ArrayList<>();
+    Set<String> siteUrls = new HashSet<>();
+    for (PwPair pwPair : allPwPairs) {
+      String siteUrl = pwPair.getPwsResult().getSiteUrl();
+      if (!siteUrls.contains(siteUrl)) {
+        siteUrls.add(siteUrl);
+        filteredPwPairs.add(pwPair);
+      }
+    }
+    return filteredPwPairs;
+  }
+
+  /**
+   * Given a list of PwPairs, return a filtered list such that only one PwPair from each group
+   * is included.
+   *
+   * @param allPairs    Input PwPairs list.
+   * @param outGroupMap Optional output map from discovered group IDs to UrlGroups, may be null.
+   * @return Filtered PwPairs list.
+   */
+  private static List<PwPair> removeDuplicateGroupIds(List<PwPair> allPairs,
+                                                      Map<String, UrlGroup> outGroupMap, Comparator<PwPair> comparator) {
+    List<PwPair> filteredPairs = new ArrayList<>();
+    Map<String, UrlGroup> groupMap = outGroupMap;
+    if (groupMap == null) {
+      groupMap = new HashMap<>();
+    } else {
+      groupMap.clear();
+    }
+
+    for (PwPair pwPair : allPairs) {
+      PwsResult pwsResult = pwPair.getPwsResult();
+      String groupId = pwsResult.getGroupId();
+      if (groupId == null || groupId.equals("")) {
+        // Pairs without a group are always included
+        filteredPairs.add(pwPair);
+      } else {
+        // Create the group if it doesn't exist
+        UrlGroup urlGroup = groupMap.get(groupId);
+        if (urlGroup == null) {
+          urlGroup = new UrlGroup(groupId);
+          groupMap.put(groupId, urlGroup);
+        }
+        urlGroup.addPair(pwPair);
+      }
+    }
+
+    for (UrlGroup urlGroup : groupMap.values()) {
+      filteredPairs.add(urlGroup.getTopPair(comparator));
+    }
+
+    return filteredPairs;
   }
 
   /**
    * Add a UrlDevice to the collection.
    * @param urlDevice The UrlDevice to add.
+   * @return true if the device already existed in the map
    */
-  public void addUrlDevice(UrlDevice urlDevice) {
+  public boolean addUrlDevice(UrlDevice urlDevice) {
+    boolean alreadyFound = mDeviceIdToUrlDeviceMap.containsKey(urlDevice.getId());
     mDeviceIdToUrlDeviceMap.put(urlDevice.getId(), urlDevice);
+    return alreadyFound;
   }
 
   /**
@@ -78,6 +192,18 @@ public class PhysicalWebCollection {
    */
   public void addIcon(String url, byte[] icon) {
     mIconUrlToIconMap.put(url, icon);
+  }
+
+  /**
+   * Clear results and devices.
+   */
+  public void clear() {
+    mDeviceIdToUrlDeviceMap.clear();
+    mBroadcastUrlToPwsResultMap.clear();
+    mIconUrlToIconMap.clear();
+    mPendingBroadcastUrls.clear();
+    mPendingIconUrls.clear();
+    mFailedResolveUrls.clear();
   }
 
   /**
@@ -108,6 +234,15 @@ public class PhysicalWebCollection {
   }
 
   /**
+   * Gets all UrlDevices stored in the collection.
+   *
+   * @return List of UrlDevices
+   */
+  public List<UrlDevice> getUrlDevices() {
+    return (List) new ArrayList(mDeviceIdToUrlDeviceMap.values());
+  }
+
+  /**
    * Create a JSON object that represents this data structure.
    * @return a JSON serialization of this data structure.
    */
@@ -128,58 +263,30 @@ public class PhysicalWebCollection {
     }
     jsonObject.put(METADATA_KEY, metadata);
 
+    JSONObject iconMap = new JSONObject();
+    for (String iconUrl : mIconUrlToIconMap.keySet()) {
+      iconMap.put(iconUrl, new String(Base64.encodeBase64(getIcon(iconUrl)),
+              Charset.forName("UTF-8")));
+    }
+    jsonObject.put(ICON_MAP_KEY, iconMap);
+
     jsonObject.put(SCHEMA_VERSION_KEY, SCHEMA_VERSION);
     return jsonObject;
-  }
-
-  /**
-   * Populate this data structure with UrlDevices represented by a given JSON object.
-   * @param jsonObject a serialized PhysicalWebCollection.
-   * @return The PhysicalWebCollection represented by the serialized object.
-   * @throws PhysicalWebCollectionException on invalid or unrecognized input
-   */
-  public static PhysicalWebCollection jsonDeserialize(JSONObject jsonObject)
-          throws PhysicalWebCollectionException, JSONException {
-    // Check the schema version
-    int schemaVersion = jsonObject.getInt(SCHEMA_VERSION_KEY);
-    if (schemaVersion > SCHEMA_VERSION) {
-      throw new PhysicalWebCollectionException(
-          "Cannot handle schema version " + schemaVersion + ".  "
-          + "This library only knows of schema version " + SCHEMA_VERSION);
-    }
-    PhysicalWebCollection collection = new PhysicalWebCollection();
-
-    // Deserialize the UrlDevices
-    JSONArray urlDevices = jsonObject.getJSONArray(DEVICES_KEY);
-    for (int i = 0; i < urlDevices.length(); i++) {
-      JSONObject urlDeviceJson = urlDevices.getJSONObject(i);
-      UrlDevice urlDevice = UrlDevice.jsonDeserialize(urlDeviceJson);
-      collection.addUrlDevice(urlDevice);
-    }
-
-    // Deserialize the URL metadata
-    JSONArray metadata = jsonObject.getJSONArray(METADATA_KEY);
-    for (int i = 0; i < metadata.length(); i++) {
-      JSONObject pwsResultJson = metadata.getJSONObject(i);
-      PwsResult pwsResult = PwsResult.jsonDeserialize(pwsResultJson);
-      collection.addMetadata(pwsResult);
-    }
-
-    return collection;
   }
 
   /**
    * Return a list of PwPairs sorted by rank in descending order.
    * These PwPairs will be deduplicated by siteUrls (favoring the PwPair with
    * the highest rank).
+   * @param comparator to sort pairs by
    * @return a sorted list of PwPairs.
    */
-  public List<PwPair> getPwPairsSortedByRank() {
+  public List<PwPair> getPwPairsSortedByRank(Comparator<PwPair> comparator) {
     // Get all valid PwPairs.
     List<PwPair> allPwPairs = getPwPairs();
 
     // Sort the list in descending order.
-    Collections.sort(allPwPairs, Collections.reverseOrder());
+    Collections.sort(allPwPairs, comparator);
 
     // Filter the list.
     return removeDuplicateSiteUrls(allPwPairs);
@@ -188,17 +295,18 @@ public class PhysicalWebCollection {
   /**
    * Return a list of PwPairs sorted by rank in descending order, including only the top-ranked
    * pair from each group.
+   * @param comparator to sort pairs by
    * @return a sorted list of PwPairs.
    */
-  public List<PwPair> getGroupedPwPairsSortedByRank() {
+  public List<PwPair> getGroupedPwPairsSortedByRank(Comparator<PwPair> comparator) {
     // Get all valid PwPairs.
     List<PwPair> allPwPairs = getPwPairs();
 
     // Group pairs with the same groupId, keeping only the top-ranked PwPair.
-    List<PwPair> groupedPwPairs = removeDuplicateGroupIds(allPwPairs, null);
+    List<PwPair> groupedPwPairs = removeDuplicateGroupIds(allPwPairs, null, comparator);
 
     // Sort by descending rank.
-    Collections.sort(groupedPwPairs, Collections.reverseOrder());
+    Collections.sort(groupedPwPairs, comparator);
 
     // Remove duplicate site URLs.
     return removeDuplicateSiteUrls(groupedPwPairs);
@@ -208,7 +316,7 @@ public class PhysicalWebCollection {
    * Return a list of all pairs of valid URL devices and corresponding URL metadata.
    * @return list of PwPairs.
    */
-  private List<PwPair> getPwPairs() {
+  public List<PwPair> getPwPairs() {
     List<PwPair> allPwPairs = new ArrayList<>();
     for (UrlDevice urlDevice : mDeviceIdToUrlDeviceMap.values()) {
       PwsResult pwsResult = mBroadcastUrlToPwsResultMap.get(urlDevice.getUrl());
@@ -221,10 +329,12 @@ public class PhysicalWebCollection {
 
   /**
    * Return the top-ranked PwPair for a given group ID.
+   * @param groupId
+   * @param comparator to sort pairs by
    * @return a PwPair.
    */
-  public PwPair getTopRankedPwPairByGroupId(String groupId) {
-    for (PwPair pwPair : getGroupedPwPairsSortedByRank()) {
+  public PwPair getTopRankedPwPairByGroupId(String groupId, Comparator<PwPair> comparator) {
+    for (PwPair pwPair : getGroupedPwPairsSortedByRank(comparator)) {
       if (pwPair.getPwsResult().getGroupId().equals(groupId)) {
         return pwPair;
       }
@@ -233,103 +343,34 @@ public class PhysicalWebCollection {
   }
 
   /**
-   * If a site URL appears multiple times in the pairs list, keep only the first example.
-   * @param allPwPairs input PwPairs list.
-   * @return filtered PwPairs list with all duplicated site URLs removed.
-   */
-  private static List<PwPair> removeDuplicateSiteUrls(List<PwPair> allPwPairs) {
-    List<PwPair> filteredPwPairs = new ArrayList<>();
-    Set<String> siteUrls = new HashSet<>();
-    for (PwPair pwPair : allPwPairs) {
-      String siteUrl = pwPair.getPwsResult().getSiteUrl();
-      if (!siteUrls.contains(siteUrl)) {
-        siteUrls.add(siteUrl);
-        filteredPwPairs.add(pwPair);
-      }
-    }
-    return filteredPwPairs;
-  }
-
-  /**
-   * Given a list of PwPairs, return a filtered list such that only one PwPair from each group
-   * is included.
-   * @param allPairs Input PwPairs list.
-   * @param outGroupMap Optional output map from discovered group IDs to UrlGroups, may be null.
-   * @return Filtered PwPairs list.
-   */
-  private static List<PwPair> removeDuplicateGroupIds(List<PwPair> allPairs,
-                                                      Map<String, UrlGroup> outGroupMap) {
-    List<PwPair> filteredPairs = new ArrayList<>();
-    Map<String, UrlGroup> groupMap = outGroupMap;
-    if (groupMap == null) {
-      groupMap = new HashMap<>();
-    } else {
-      groupMap.clear();
-    }
-
-    for (PwPair pwPair : allPairs) {
-      PwsResult pwsResult = pwPair.getPwsResult();
-      String groupId = pwsResult.getGroupId();
-      if (groupId == null || groupId.equals("")) {
-        // Pairs without a group are always included
-        filteredPairs.add(pwPair);
-      } else {
-        // Create the group if it doesn't exist
-        UrlGroup urlGroup = groupMap.get(groupId);
-        if (urlGroup == null) {
-          urlGroup = new UrlGroup(groupId);
-          groupMap.put(groupId, urlGroup);
-        }
-        urlGroup.addPair(pwPair);
-      }
-    }
-
-    for (UrlGroup urlGroup : groupMap.values()) {
-      filteredPairs.add(urlGroup.getTopPair());
-    }
-
-    return filteredPairs;
-  }
-
-  /**
-   * Set the URL for making PWS requests.
+   * Set the URL, the API version, the API Key for making PWS requests.
    * @param pwsEndpoint The new PWS endpoint.
+   * @param pwsApiVersion The new PWS API version.
    */
-  public void setPwsEndpoint(String pwsEndpoint) {
-    mPwsClient.setPwsEndpoint(pwsEndpoint);
+  public void setPwsEndpoint(String pwsEndpoint, int pwsApiVersion) {
+    mPwsClient.setEndpoint(pwsEndpoint, pwsApiVersion);
   }
 
-  private class AugmentedPwsResultIconCallback extends PwsResultIconCallback {
-    private String mUrl;
-    private PwsResultIconCallback mCallback;
-
-    AugmentedPwsResultIconCallback(String url, PwsResultIconCallback callback) {
-      mUrl = url;
-      mCallback = callback;
-    }
-
-    @Override
-    public void onIcon(byte[] icon) {
-      mPendingIconUrls.remove(mUrl);
-      addIcon(mUrl, icon);
-      mCallback.onIcon(icon);
-    }
-
-    @Override
-    public void onError(int httpResponseCode, Exception e) {
-      mPendingIconUrls.remove(mUrl);
-      mCallback.onError(httpResponseCode, e);
-    }
+  /**
+   * Set the URL, the API version, the API Key for making PWS requests.
+   *
+   * @param pwsEndpoint   The new PWS endpoint.
+   * @param pwsApiVersion The new PWS API version.
+   * @param pwsApiKey     The new PWS API key.
+   */
+  public void setPwsEndpoint(String pwsEndpoint, int pwsApiVersion, String pwsApiKey) {
+    mPwsClient.setEndpoint(pwsEndpoint, pwsApiVersion, pwsApiKey);
   }
 
   /**
    * Triggers an HTTP request to be made to the PWS.
    * This method fetches a results from the PWS for all broadcast URLs,
    * depending on the supplied parameters.
-   * @param pwsResultCallback The callback to run when we get an HTTPResponse.
-   * If this value is null, we will not fetch the PwsResults, only icons.
+   *
+   * @param pwsResultCallback     The callback to run when we get an HTTPResponse.
+   *                              If this value is null, we will not fetch the PwsResults, only icons.
    * @param pwsResultIconCallback The callback to run when we get a favicon.
-   * If this value is null, we will not fetch the icons.
+   *                              If this value is null, we will not fetch the icons.
    */
   public void fetchPwsResults(final PwsResultCallback pwsResultCallback,
                               final PwsResultIconCallback pwsResultIconCallback) {
@@ -338,14 +379,14 @@ public class PhysicalWebCollection {
     Set<String> newIconUrls = new HashSet<>();
     for (UrlDevice urlDevice : mDeviceIdToUrlDeviceMap.values()) {
       String url = urlDevice.getUrl();
-      if (!mPendingBroadcastUrls.contains(url)) {
+      if (!mPendingBroadcastUrls.contains(url) && !mFailedResolveUrls.contains(url)) {
         PwsResult pwsResult = mBroadcastUrlToPwsResultMap.get(url);
         if (pwsResult == null) {
           newResolveUrls.add(url);
           mPendingBroadcastUrls.add(url);
         } else if (pwsResult.hasIconUrl()
-            && !mPendingIconUrls.contains(pwsResult.getIconUrl())
-            && !mIconUrlToIconMap.containsKey(pwsResult.getIconUrl())) {
+                && !mPendingIconUrls.contains(pwsResult.getIconUrl())
+                && !mIconUrlToIconMap.containsKey(pwsResult.getIconUrl())) {
           newIconUrls.add(pwsResult.getIconUrl());
           mPendingIconUrls.add(pwsResult.getIconUrl());
         }
@@ -359,15 +400,16 @@ public class PhysicalWebCollection {
       public void onPwsResult(PwsResult pwsResult) {
         addMetadata(pwsResult);
         if (pwsResultIconCallback != null) {
-            PwsResultIconCallback augmentedIconCallback =
-                new AugmentedPwsResultIconCallback(pwsResult.getIconUrl(), pwsResultIconCallback);
-            mPwsClient.downloadIcon(pwsResult.getIconUrl(), augmentedIconCallback);
+          PwsResultIconCallback augmentedIconCallback =
+                  new AugmentedPwsResultIconCallback(pwsResult.getIconUrl(), pwsResultIconCallback);
+          mPwsClient.downloadIcon(pwsResult.getIconUrl(), augmentedIconCallback);
         }
         pwsResultCallback.onPwsResult(pwsResult);
       }
 
       @Override
       public void onPwsResultAbsent(String url) {
+        mFailedResolveUrls.add(url);
         pwsResultCallback.onPwsResultAbsent(url);
       }
 
@@ -392,7 +434,7 @@ public class PhysicalWebCollection {
     if (pwsResultIconCallback != null) {
       for (final String iconUrl : newIconUrls) {
         PwsResultIconCallback augmentedIconCallback =
-            new AugmentedPwsResultIconCallback(iconUrl, pwsResultIconCallback);
+                new AugmentedPwsResultIconCallback(iconUrl, pwsResultIconCallback);
         mPwsClient.downloadIcon(iconUrl, augmentedIconCallback);
       }
     }
@@ -403,5 +445,28 @@ public class PhysicalWebCollection {
    */
   public void cancelAllRequests() {
     mPwsClient.cancelAllRequests();
+  }
+
+  private class AugmentedPwsResultIconCallback extends PwsResultIconCallback {
+    private String mUrl;
+    private PwsResultIconCallback mCallback;
+
+    AugmentedPwsResultIconCallback(String url, PwsResultIconCallback callback) {
+      mUrl = url;
+      mCallback = callback;
+    }
+
+    @Override
+    public void onIcon(byte[] icon) {
+      mPendingIconUrls.remove(mUrl);
+      addIcon(mUrl, icon);
+      mCallback.onIcon(icon);
+    }
+
+    @Override
+    public void onError(int httpResponseCode, Exception e) {
+      mPendingIconUrls.remove(mUrl);
+      mCallback.onError(httpResponseCode, e);
+    }
   }
 }
