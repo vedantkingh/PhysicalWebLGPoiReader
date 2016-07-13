@@ -17,24 +17,21 @@
 package gsoc.google.com.physicalweblgpoireader;
 
 import android.app.Activity;
-import android.app.Fragment;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
-import android.support.v7.app.ActionBar;
+import android.support.annotation.Nullable;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
 import gsoc.google.com.physicalweblgpoireader.PW.NearbyBeaconsFragment;
 import gsoc.google.com.physicalweblgpoireader.PW.ScreenListenerService;
-import gsoc.google.com.physicalweblgpoireader.utils.AndroidUtils;
 import gsoc.google.com.physicalweblgpoireader.utils.FragmentStackManager;
 
 /**
@@ -42,7 +39,7 @@ import gsoc.google.com.physicalweblgpoireader.utils.FragmentStackManager;
  */
 
 public class MainActivity extends AppCompatActivity {
-    private static final int REQUEST_ENABLE_BT = 0;
+    private static final int REQUEST_ENABLE_BT = 1;
     private static final String NEARBY_BEACONS_FRAGMENT_TAG = "NearbyBeaconsFragmentTag";
 
     private FragmentStackManager fragmentStackManager;
@@ -60,24 +57,13 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
         fragmentStackManager = FragmentStackManager.getInstance(this);
-    }
-
-    /**
-     * Ensures Bluetooth is available on the beacon and it is enabled. If not,
-     * displays a dialog requesting user permission to enable Bluetooth.
-     */
-    private void ensureBluetoothIsEnabled(BluetoothAdapter bluetoothAdapter) {
-        if (!bluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        }
+        setContentView(R.layout.activity_main);
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
+    protected void onPostCreate(@Nullable Bundle savedInstanceState) {
+        super.onPostCreate(savedInstanceState);
         BluetoothManager btManager = (BluetoothManager) getSystemService(BLUETOOTH_SERVICE);
         BluetoothAdapter btAdapter = btManager != null ? btManager.getAdapter() : null;
         if (btAdapter == null) {
@@ -86,11 +72,43 @@ public class MainActivity extends AppCompatActivity {
             finish();
             return;
         }
-            ensureBluetoothIsEnabled(btAdapter);
-            showNearbyBeaconsFragment();
-            Intent intent = new Intent(this, ScreenListenerService.class);
-            startService(intent);
+        ensureBluetoothIsEnabled(btAdapter);
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+    }
+
+    /**
+     * Ensures Bluetooth is available on the beacon and it is enabled. If not,
+     * displays a dialog requesting user permission to enable Bluetooth.
+     */
+    private void ensureBluetoothIsEnabled(BluetoothAdapter bluetoothAdapter) {
+        if (!bluetoothAdapter.isEnabled()) {
+            bluetoothAdapter.enable();
+        }
+        showNearbyBeaconsFragment();
+        Intent intent = new Intent(this, ScreenListenerService.class);
+        startService(intent);
+    }
+
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode == Activity.RESULT_OK) {
+                showNearbyBeaconsFragment();
+                Intent intent = new Intent(this, ScreenListenerService.class);
+                startService(intent);
+            }
+        }
+    }
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
     }
 
     @Override
@@ -98,7 +116,6 @@ public class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         setIntent(intent);
     }
-
 
 
     @Override
