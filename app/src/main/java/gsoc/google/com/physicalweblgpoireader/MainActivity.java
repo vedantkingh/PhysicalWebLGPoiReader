@@ -16,22 +16,27 @@
 
 package gsoc.google.com.physicalweblgpoireader;
 
+import android.Manifest;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+
 import gsoc.google.com.physicalweblgpoireader.PW.NearbyBeaconsFragment;
 import gsoc.google.com.physicalweblgpoireader.PW.ScreenListenerService;
+import gsoc.google.com.physicalweblgpoireader.settings.SettingsFragment;
 import gsoc.google.com.physicalweblgpoireader.utils.FragmentStackManager;
 
 /**
@@ -86,6 +91,16 @@ public class MainActivity extends AppCompatActivity {
      */
     private void ensureBluetoothIsEnabled(BluetoothAdapter bluetoothAdapter) {
         if (!bluetoothAdapter.isEnabled()) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }
             bluetoothAdapter.enable();
         }
         showNearbyBeaconsFragment();

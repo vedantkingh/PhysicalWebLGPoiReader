@@ -9,13 +9,12 @@ repositories {
 
 
 android {
-    compileSdkVersion 23
-    buildToolsVersion "23.0.3"
+    compileSdkVersion 33
 
     defaultConfig {
         applicationId "gsoc.google.com.physicalweblgpoireader"
         minSdkVersion 19
-        targetSdkVersion 23
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
 
@@ -29,20 +28,21 @@ android {
         }
     }
     useLibrary 'org.apache.http.legacy'
+    namespace 'gsoc.google.com.physicalweblgpoireader'
 
 }
 
 dependencies {
-    compile fileTree(include: ['*.jar'], dir: 'libs')
-    compile(name: 'uribeacon-library-release', ext: 'aar')
-    compile files('libs/jsch-0.1.53.jar')
-    compile files('libs/jzlib-1.1.1.jar')
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation(name: 'uribeacon-library-release', ext: 'aar')
+    implementation files('libs/jsch-0.1.53.jar')
+    implementation files('libs/jzlib-1.1.1.jar')
 
-    testCompile 'junit:junit:4.12'
-    compile 'com.android.support:appcompat-v7:23.4.0'
-    compile 'com.android.support:design:23.4.0'
-    compile 'com.mcxiaoke.volley:library-aar:1.0.1'
+    testImplementation 'junit:junit:4.13.2'
+    implementation 'androidx.appcompat:appcompat:1.0.0'
+    implementation 'com.google.android.material:material:1.0.0'
+    implementation 'com.mcxiaoke.volley:library-aar:1.0.1'
 
-    compile 'com.android.support:multidex:1.0.1'
+    implementation 'com.android.support:multidex:1.0.3'
 
 }

@@ -1,11 +1,14 @@
 package gsoc.google.com.physicalweblgpoireader.utils;
 
 import android.content.Context;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.FragmentManager;
-import android.support.v4.app.FragmentTransaction;
-import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
+
+import gsoc.google.com.physicalweblgpoireader.PW.NearbyBeaconsFragment;
 
 
 public class FragmentStackManager {
